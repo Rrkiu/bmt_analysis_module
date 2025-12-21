@@ -256,3 +256,27 @@ class CourtGeometry:
             return False, f"코트 비율이 부적절합니다 (expected: {expected_ratio:.2f}, actual: {actual_ratio:.2f})"
         
         return True, "유효한 코트 형태입니다"
+
+    @staticmethod
+    def is_point_in_court(world_point: Tuple[float, float], margin: float = 0.0) -> bool:
+        """
+        실세계 좌표가 유효 코트 영역 내에 있는지 확인 (단식 코트 기준)
+        
+        Args:
+            world_point: (x, y) 실세계 좌표 (미터)
+            margin: 허용 마진 (미터)
+            
+        Returns:
+            bool: 코트 내 여부
+        """
+        from constants import CourtDimensions
+        
+        x, y = world_point
+        half_width = CourtDimensions.SINGLES_WIDTH / 2
+        
+        # x: -half_width ~ half_width
+        # y: 0 ~ BACK_BOUNDARY_LINE (6.7m)
+        in_x = (-half_width - margin) <= x <= (half_width + margin)
+        in_y = (0 - margin) <= y <= (CourtDimensions.BACK_BOUNDARY_LINE + margin)
+        
+        return in_x and in_y

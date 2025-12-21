@@ -23,30 +23,13 @@ class CalibrationService:
         rotation_angle: float = 0.0
     ) -> Dict:
         """
-        T자 기준점으로부터 코트 캘리브레이션 수행
-        
-        Args:
-            t_point_image: 이미지 상의 T자 기준점 (x, y) 픽셀 좌표
-            image_shape: (height, width) 이미지 크기
-            rotation_angle: 회전 각도 (도, 현재는 미사용)
-            
-        Returns:
-            dict: 캘리브레이션 결과
-                - court_corners_image: 이미지 좌표계의 코트 4개 코너
-                - court_corners_world: 실세계 좌표계의 코트 4개 코너
-                - t_point_world: 실세계 좌표계의 T자 점
-                - homography_matrix: 변환 행렬
-                - success: 성공 여부
+        T자 기준점으로부터 코트 캘리브레이션 수행 (추정 방식)
         """
+        # ... (생략 또는 기존 코드 유지)
+        # 이 방식보다는 직접 4개 코너를 지정하는 방식을 권장함
         
-        # 1. 실세계 코트 템플릿 가져오기
         user_court = self.court_template['user_court']
-        
-        # 2. 실세계 좌표계의 주요 포인트들
-        # T자 기준점 (실세계)
         t_point_world = self.court_template['t_reference']
-        
-        # 코트 4개 코너 (실세계) - 시계방향
         court_corners_world = [
             user_court['top_left'],
             user_court['top_right'],
@@ -54,58 +37,74 @@ class CalibrationService:
             user_court['bottom_left']
         ]
         
-        # 3. 픽셀 스케일 추정
-        # 이미지 크기로부터 적절한 스케일 계산
         image_height, image_width = image_shape
-        
-        # 코트가 이미지의 약 60-80%를 차지한다고 가정
         estimated_court_height_pixels = image_height * 0.7
-        actual_court_length = CourtDimensions.BACK_BOUNDARY_LINE  # 6.7m
+        actual_court_length = CourtDimensions.BACK_BOUNDARY_LINE
         pixels_per_meter = estimated_court_height_pixels / actual_court_length
-        
-        # 4. T자 기준점을 기준으로 코트 코너들의 이미지 좌표 계산
-        # T자 점 = (0, SHORT_SERVICE_LINE) in world coords
-        # 각 코트 코너와 T자 점의 실세계 오프셋을 계산하고
-        # 픽셀로 변환하여 이미지 좌표 생성
         
         t_x_img, t_y_img = t_point_image
         
         court_corners_image = []
         for world_corner in court_corners_world:
-            # 실세계에서 T자 점으로부터의 오프셋
             offset_x_world = world_corner[0] - t_point_world['x']
             offset_y_world = world_corner[1] - t_point_world['y']
-            
-            # 픽셀로 변환
             offset_x_pixels = offset_x_world * pixels_per_meter
             offset_y_pixels = offset_y_world * pixels_per_meter
-            
-            # 이미지 좌표 계산
-            corner_x_img = t_x_img + offset_x_pixels
-            corner_y_img = t_y_img + offset_y_pixels
-            
-            court_corners_image.append([corner_x_img, corner_y_img])
+            court_corners_image.append([t_x_img + offset_x_pixels, t_y_img + offset_y_pixels])
         
-        # 5. Homography 계산
+        return self.calibrate_from_corners(court_corners_image, image_shape)
+
+    def calibrate_from_corners(
+        self,
+        court_corners_image: List[List[float]],
+        image_shape: Tuple[int, int]
+    ) -> Dict:
+        """
+        사용자가 지정한 4개 코너로부터 캘리브레이션 수행
+        
+        Args:
+            court_corners_image: [TL, TR, BR, BL] 이미지 좌표
+            image_shape: (height, width)
+            
+        Returns:
+            dict: 캘리브레이션 결과
+        """
+        user_court = self.court_template['user_court']
+        court_corners_world = [
+            user_court['top_left'],      # TL: [-2.59, 0]
+            user_court['top_right'],     # TR: [ 2.59, 0]
+            user_court['bottom_right'],  # BR: [ 2.59, 6.7]
+            user_court['bottom_left']    # BL: [-2.59, 6.7]
+        ]
+        
+        # Homography 계산
         src_points = np.array(court_corners_image, dtype=np.float32)
         dst_points = np.array(court_corners_world, dtype=np.float32)
         
-        success = self.homography.compute_homography(src_points, dst_points)
+        # 4개 점일 때는 method=0 (정확한 해) 사용
+        success = self.homography.compute_homography(src_points, dst_points, method=0)
         
         if not success:
             return {
                 'success': False,
                 'error': 'Homography 계산 실패'
             }
+            
+        # 픽셀/미터 비율은 가로/세로 평균으로 추정
+        # TL-TR 거리 (가로)
+        w_pixels = np.linalg.norm(src_points[0] - src_points[1])
+        w_meters = CourtDimensions.SINGLES_WIDTH
+        # TR-BR 거리 (세로)
+        h_pixels = np.linalg.norm(src_points[1] - src_points[2])
+        h_meters = CourtDimensions.BACK_BOUNDARY_LINE
         
-        # 6. 결과 반환
+        pixels_per_meter = float((w_pixels/w_meters + h_pixels/h_meters) / 2)
+        
         return {
             'success': True,
             'court_corners_image': court_corners_image,
             'court_corners_world': court_corners_world,
-            't_point_image': list(t_point_image),
-            't_point_world': t_point_world,
-            'homography_matrix': self.homography.homography_matrix.tolist(),
+            'homography_matrix': self.homography.homography_matrix.astype(float).tolist(),
             'pixels_per_meter': pixels_per_meter,
             'image_shape': image_shape,
         }
