@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프로파일 관리 - 배드민턴 코트 캘리브레이션</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .profile-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .profile-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .profile-thumbnail {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #f0f0f0;
+        }
+
+        .profile-info {
+            margin-top: 15px;
+        }
+
+        .profile-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .profile-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .profile-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-use {
+            background: #6366f1;
+            color: white;
+        }
+
+        .btn-use:hover {
+            background: #4f46e5;
+        }
+
+        .btn-edit {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-edit:hover {
+            background: #d1d5db;
+        }
+
+        .btn-delete {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        .btn-delete:hover {
+            background: #fca5a5;
+        }
+
+        .create-new-card {
+            border: 3px dashed #cbd5e1;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 250px;
+        }
+
+        .create-new-card:hover {
+            border-color: #6366f1;
+            background: #f0f3ff;
+        }
+
+        .create-icon {
+            font-size: 48px;
+            color: #6366f1;
+            margin-bottom: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏸 캘리브레이션 프로파일 관리</h1>
+            <p>저장된 프로파일을 선택하거나 새로 생성하세요</p>
+        </div>
+
+        <div id="profilesContainer" class="profile-grid">
+            <!-- 프로파일 카드들이 동적으로 추가됨 -->
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📋</div>
+            <h2>저장된 프로파일이 없습니다</h2>
+            <p>새 캘리브레이션을 생성하여 시작하세요</p>
+            <button class="btn btn-primary" onclick="goToCalibration()" style="margin-top: 20px;">
+                새 캘리브레이션 생성
+            </button>
+        </div>
+    </div>
+
+    <!-- 프로파일 저장 모달 -->
+    <div id="saveProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">프로파일 저장</div>
+
+            <div class="form-group">
+                <label>프로파일 이름 *</label>
+                <input type="text" id="profileName" placeholder="예: A코트 카메라1" required>
+            </div>
+
+            <div class="form-group">
+                <label>프로파일 ID (선택사항)</label>
+                <input type="text" id="profileId" placeholder="자동 생성됨 (예: court_a_camera_1)">
+                <small style="color: #6b7280;">비워두면 자동으로 생성됩니다</small>
+            </div>
+
+            <div class="form-group">
+                <label>코트 이름</label>
+                <input type="text" id="courtName" placeholder="예: A코트">
+            </div>
+
+            <div class="form-group">
+                <label>장소</label>
+                <input type="text" id="venue" placeholder="예: XX체육관">
+            </div>
+
+            <div class="form-group">
+                <label>메모</label>
+                <textarea id="notes" rows="3" placeholder="추가 정보 (선택사항)"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeSaveProfileModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveProfileConfirm()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 프로파일 편집 모달 -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">프로파일 편집</div>
+
+            <div class="form-group">
+                <label>프로파일 이름</label>
+                <input type="text" id="editProfileName">
+            </div>
+
+            <div class="form-group">
+                <label>코트 이름</label>
+                <input type="text" id="editCourtName">
+            </div>
+
+            <div class="form-group">
+                <label>장소</label>
+                <input type="text" id="editVenue">
+            </div>
+
+            <div class="form-group">
+                <label>메모</label>
+                <textarea id="editNotes" rows="3"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeEditProfileModal()">취소</button>
+                <button class="btn btn-primary" onclick="updateProfileConfirm()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>처리 중...</p>
+    </div>
+
+    <script src="profile-manager.js"></script>
+</body>
+
+</html>

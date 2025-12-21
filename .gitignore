@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+ENV/
+
+# Large Files & Archives (Moved to Git LFS if needed)
+# *.zip
+# *.pt
+# *.pth
+
+# Project Specific
+storage/videos/*
+storage/uploads/*
+storage/results/*
+!storage/videos/.gitkeep
+!storage/uploads/.gitkeep
+!storage/results/.gitkeep
+
+# Metadata & OS files
+.DS_Store
+.vscode/
+.idea/
