@@ -68,7 +68,7 @@ sessions = {}
 # 서비스 초기화
 profile_service = CalibrationProfileService(
     storage_dir=CALIBRATION_DIR,
-    db_path="storage/calibrations.db"
+    db_path=str(STORAGE_DIR / "calibrations.db")
 )
 
 
