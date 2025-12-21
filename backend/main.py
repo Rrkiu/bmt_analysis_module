@@ -13,6 +13,7 @@ import numpy as np
 import os
 import uuid
 import json
+import base64
 from datetime import datetime
 
 from calibration_service import CalibrationService
@@ -327,23 +328,16 @@ async def align_court_corners(alignment: CornersAlignment):
         if image is None:
             raise HTTPException(status_code=400, detail="이미지를 읽을 수 없습니다")
         
-        # 4개 코너로부터 T자 기준점 계산 (상단 중앙)
-        corners = alignment.corners
-        t_point_x = (corners[0][0] + corners[1][0]) / 2
-        t_point_y = (corners[0][1] + corners[1][1]) / 2
-        
-        # 캘리브레이션 수행
+        # 캘리브레이션 서비스 초기화
         calibration_service = CalibrationService()
-        calibration_result = calibration_service.calibrate_from_t_point(
-            t_point_image=(t_point_x, t_point_y),
+        corners = alignment.corners
+        calibration_result = calibration_service.calibrate_from_corners(
+            court_corners_image=corners,
             image_shape=(alignment.image_height, alignment.image_width)
         )
         
         if not calibration_result['success']:
             raise HTTPException(status_code=400, detail="캘리브레이션 실패")
-        
-        # 사용자 지정 코너로 덮어쓰기
-        calibration_result['court_corners_image'] = corners
         
         court_region = calibration_service.generate_court_region(calibration_result)
         t_guide_coords = calibration_service.get_t_guide_image_coords(calibration_result)
@@ -373,93 +367,6 @@ async def align_court_corners(alignment: CornersAlignment):
             "message": "캘리브레이션 완료",
             "data": {
                 "court_corners": corners,
-                "pixels_per_meter": calibration_result['pixels_per_meter'],
-                "court_area": court_region['court_region']['area_pixels'],
-                "validation": {
-                    "is_valid": court_region['court_region']['is_valid'],
-                    "message": court_region['court_region']['validation_message']
-                }
-            }
-        })
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"캘리브레이션 실패: {str(e)}")
-    """
-    T자 정렬 및 코트 영역 생성
-    
-    Args:
-        alignment: T자 정렬 정보
-        
-    Returns:
-        캘리브레이션 결과
-    """
-    try:
-        session_id = alignment.session_id
-        
-        # 세션 확인
-        if session_id not in sessions:
-            raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다")
-        
-        session = sessions[session_id]
-        
-        # 이미지 로드
-        image = cv2.imread(session['filepath'])
-        if image is None:
-            raise HTTPException(status_code=400, detail="이미지를 읽을 수 없습니다")
-        
-        # 캘리브레이션 서비스 초기화
-        calibration_service = CalibrationService()
-        
-        # T자 기준점으로부터 캘리브레이션 수행
-        t_point = (alignment.t_point_x, alignment.t_point_y)
-        image_shape = (alignment.image_height, alignment.image_width)
-        
-        calibration_result = calibration_service.calibrate_from_t_point(
-            t_point_image=t_point,
-            image_shape=image_shape
-        )
-        
-        if not calibration_result['success']:
-            raise HTTPException(status_code=400, detail="캘리브레이션 실패")
-        
-        # 코트 영역 생성
-        court_region = calibration_service.generate_court_region(calibration_result)
-        
-        # T자 가이드 좌표 계산
-        t_guide_coords = calibration_service.get_t_guide_image_coords(calibration_result)
-        
-        # 시각화
-        result_image = VisualizationService.draw_complete_visualization(
-            image=image,
-            calibration_result=calibration_result,
-            t_guide_coords=t_guide_coords,
-            show_t_guide=True,
-            show_court_region=True
-        )
-        
-        # 결과 이미지 저장
-        result_filename = f"{session_id}_result.jpg"
-        result_filepath = os.path.join(RESULT_DIR, result_filename)
-        cv2.imwrite(result_filepath, result_image)
-        
-        # 세션 업데이트
-        session['calibrated'] = True
-        session['calibration_result'] = calibration_result
-        session['court_region'] = court_region
-        session['t_guide_coords'] = t_guide_coords
-        session['result_filepath'] = result_filepath
-        session['calibration_time'] = datetime.now().isoformat()
-        
-        # 결과 반환
-        return JSONResponse(content={
-            "success": True,
-            "session_id": session_id,
-            "message": "캘리브레이션 완료",
-            "data": {
-                "court_corners": calibration_result['court_corners_image'],
-                "t_point": calibration_result['t_point_image'],
                 "pixels_per_meter": calibration_result['pixels_per_meter'],
                 "court_area": court_region['court_region']['area_pixels'],
                 "validation": {
@@ -1041,7 +948,8 @@ async def process_video_analysis(request: VideoAnalysisRequest):
 @time_logger("API: Total Frame Predict")
 async def predict_frame(
     session_id: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    video_time: float = Form(0.0) # 비디오 시간 추가
 ):
     """
     실시간 프레임 분석 API
@@ -1065,16 +973,34 @@ async def predict_frame(
     nparr = np.frombuffer(contents, np.uint8)
     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
-    # 분석 수행 (코트 정보는 이미 있고, 셔틀콕 추적 수행)
-    _, info = service.process_frame(frame)
+    # 분석 수행
+    processed_frame, info = service.process_frame(frame, video_time=video_time)
     
-    if info.get('tracknet'):
-        t = info['tracknet']
-        # print(f"🎯 Prediction for session {session_id}: x={t['x']}, y={t['y']}, vis={t['visibility']}")
+    # 분석된 프레임을 base64로 인코딩 (필요한 경우 프론트엔드에서 사용)
+    _, buffer = cv2.imencode('.jpg', processed_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    img_base64 = base64.b64encode(buffer).decode('utf-8')
+    
+    # JSON 직렬화 오류 방지를 위해 NumPy 타입 변환 (info 내의 landing 데이터 등)
+    def sanitize_info(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+            return float(obj)
+        if isinstance(obj, np.int32) or isinstance(obj, np.int64):
+            return int(obj)
+        if isinstance(obj, dict):
+            return {k: sanitize_info(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [sanitize_info(v) for v in obj]
+        return obj
+
+    sanitized_info = sanitize_info(info)
     
     return JSONResponse(content={
         "success": True,
-        "tracknet": info.get('tracknet')
+        "tracknet": sanitized_info.get('tracknet'),
+        "landing": sanitized_info.get('landing'),
+        "processed_image": f"data:image/jpeg;base64,{img_base64}"
     })
 
 

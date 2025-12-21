@@ -256,3 +256,76 @@ class VisualizationService:
         except Exception as e:
             print(f"Base64 to image conversion error: {e}")
             return None
+
+    @staticmethod
+    def draw_minimap(
+        image: np.ndarray,
+        world_point: Optional[Tuple[float, float]] = None,
+        is_in_court: bool = True,
+        position: Tuple[int, int] = (1000, 50),
+        size: Tuple[int, int] = (200, 260) # w, h
+    ) -> np.ndarray:
+        """
+        우상단 미니맵 그리기
+        
+        Args:
+            image: 원본 이미지
+            world_point: (x, y) 실세계 좌표 (미터)
+            is_in_court: 코트 내 여부
+            position: 미니맵 좌상단 위치
+            size: 미니맵 크기
+        """
+        img = image.copy()
+        from constants import CourtDimensions
+        
+        mx, my = position
+        mw, mh = size
+        
+        # 미니맵 배경 (반투명 어두운 회색)
+        overlay = img.copy()
+        cv2.rectangle(overlay, (mx - 10, my - 10), (mx + mw + 10, my + mh + 40), (40, 40, 40), -1)
+        img = cv2.addWeighted(img, 0.7, overlay, 0.3, 0)
+        cv2.rectangle(img, (mx - 10, my - 10), (mx + mw + 10, my + mh + 40), (200, 200, 200), 2)
+        
+        # 코트 외곽선 그리기
+        # 실세계 좌표 (-2.59, 0) ~ (2.59, 6.7)을 미니맵 (0, 0) ~ (mw, mh)로 변환
+        def world_to_mini(wx, wy):
+            # wx: -2.59 ~ 2.59 -> 0 ~ mw
+            # wy: 0 ~ 6.7 -> 0 ~ mh
+            mini_x = int(mx + (wx + 2.59) / 5.18 * mw)
+            mini_y = int(my + wy / 6.7 * mh)
+            return (mini_x, mini_y)
+        
+        # 코트 사각형
+        p1 = world_to_mini(-2.59, 0)
+        p2 = world_to_mini(2.59, 0)
+        p3 = world_to_mini(2.59, 6.7)
+        p4 = world_to_mini(-2.59, 6.7)
+        pts = np.array([p1, p2, p3, p4], dtype=np.int32)
+        cv2.polylines(img, [pts], True, (255, 255, 255), 2)
+        
+        # 숏 서비스 라인 (1.98m)
+        ss1 = world_to_mini(-2.59, 1.98)
+        ss2 = world_to_mini(2.59, 1.98)
+        cv2.line(img, ss1, ss2, (200, 200, 200), 1)
+        
+        # 센터 라인 (1.98m ~ 6.7m)
+        cl1 = world_to_mini(0, 1.98)
+        cl2 = world_to_mini(0, 6.7)
+        cv2.line(img, cl1, cl2, (200, 200, 200), 1)
+        
+        # 낙하 지점 표시
+        if world_point:
+            px, py = world_to_mini(world_point[0], world_point[1])
+            color = (0, 255, 0) if is_in_court else (0, 0, 255)
+            cv2.circle(img, (px, py), 6, color, -1)
+            cv2.circle(img, (px, py), 8, (255, 255, 255), 1)
+            
+            # 텍스트 표시
+            status_text = "IN" if is_in_court else "OUT"
+            cv2.putText(img, f"POS: {world_point[0]:.2f}, {world_point[1]:.2f}", (mx, my + mh + 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(img, f"RESULT: {status_text}", (mx, my + mh + 35),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        
+        return img
