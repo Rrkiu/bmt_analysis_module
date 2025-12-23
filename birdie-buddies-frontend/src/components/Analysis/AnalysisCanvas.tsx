@@ -30,7 +30,7 @@ interface LandingData {
 }
 
 interface AnalysisCanvasProps {
-    videoRef: React.RefObject<HTMLVideoElement>;
+    videoRef: React.RefObject<HTMLVideoElement | null>;
     calibrationData: CalibrationData | null;
     shuttlecock: ShuttlecockData | null;
     landing: LandingData | null;
