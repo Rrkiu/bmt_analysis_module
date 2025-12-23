@@ -98,7 +98,8 @@ export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefOb
         lastAnalysisTimeRef.current = now;
 
         const video = videoRef.current;
-        if (video.paused || video.ended) return;
+        // 일시정지 시에만 분석 중단 (동영상 종료 후에도 분석 계속)
+        if (video.paused) return;
 
         try {
             // Canvas에 현재 프레임 그리기
