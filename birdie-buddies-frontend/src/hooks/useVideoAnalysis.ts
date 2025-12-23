@@ -47,7 +47,7 @@ interface AnalysisState {
     error: string | null;
 }
 
-export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefObject<HTMLVideoElement>) {
+export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefObject<HTMLVideoElement | null>) {
     const [state, setState] = useState<AnalysisState>({
         calibrationData: null,
         shuttlecock: null,
