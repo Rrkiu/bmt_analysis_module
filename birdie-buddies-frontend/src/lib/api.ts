@@ -1,4 +1,5 @@
 // src/lib/api.ts
+// [기존 유지] Birdie Buddies API는 VITE_API_BASE_URL 사용
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export type User = {
@@ -147,7 +148,7 @@ export async function http<T>(
     try {
       const j = JSON.parse(detail);
       detail = j.detail ?? detail;
-    } catch {}
+    } catch { }
     throw new Error(detail || `HTTP ${res.status}`);
   }
 

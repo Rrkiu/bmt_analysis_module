@@ -31,10 +31,15 @@ app = FastAPI(
 )
 
 # CORS 설정 (프론트엔드 연동용)
+# [수정됨 - 2025-12-23] credentials: include 지원을 위해 특정 origin 명시
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:5173",  # Vite 개발 서버
+        "http://localhost:5174",  # Vite 개발 서버 (포트 충돌 시)
+        "http://localhost:8080",  # 기존 프론트엔드
+    ],
+    allow_credentials=True,  # credentials: include 허용
     allow_methods=["*"],
     allow_headers=["*"],
 )
