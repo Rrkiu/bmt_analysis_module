@@ -214,15 +214,19 @@ class CourtGeometry:
     def is_valid_court_shape(
         corners: List[Tuple[float, float]],
         expected_ratio: float = 13.4 / 5.18,
-        tolerance: float = 0.3
+        tolerance: float = 0.8  # [수정됨] 0.3 → 0.8 (더 관대하게)
     ) -> Tuple[bool, str]:
         """
         코트 형태 유효성 검증
         
+        [수정됨 - 2025-12-23]
+        4점 직접 선택 방식에서는 Homography가 모든 왜곡을 처리하므로
+        비율 검증을 완화함. 주로 명백한 오류만 검출.
+        
         Args:
             corners: 4개 코너
-            expected_ratio: 예상 가로세로 비율 (단식 코트)
-            tolerance: 허용 오차 비율
+            expected_ratio: 예상 가로세로 비율 (참고용)
+            tolerance: 허용 오차 비율 (0.8 = ±80%)
             
         Returns:
             (유효 여부, 메시지)
@@ -235,26 +239,25 @@ class CourtGeometry:
         if area < 1000:  # 너무 작은 영역
             return False, "코트 영역이 너무 작습니다"
         
-        # 가로세로 비율 확인
-        # 간단히 바운딩 박스로 확인
+        # [수정됨] 비율 검증 완화
+        # 가로세로 비율 확인 (바운딩 박스 기준)
         xs = [x for x, y in corners]
         ys = [y for x, y in corners]
         
         width = max(xs) - min(xs)
         height = max(ys) - min(ys)
         
-        if height == 0:
-            return False, "높이가 0입니다"
+        if height == 0 or width == 0:
+            return False, "코트 크기가 0입니다"
         
-        actual_ratio = height / width  # 세로가 긴 코트
+        # 비율 계산 (세로/가로 또는 가로/세로 중 큰 값)
+        ratio = max(height / width, width / height)
         
-        # 비율 검증
-        min_ratio = expected_ratio * (1 - tolerance)
-        max_ratio = expected_ratio * (1 + tolerance)
+        # 극단적인 경우만 거부 (예: 10:1 이상)
+        if ratio > 10.0:
+            return False, f"코트 비율이 극단적입니다 (ratio: {ratio:.2f})"
         
-        if actual_ratio < min_ratio or actual_ratio > max_ratio:
-            return False, f"코트 비율이 부적절합니다 (expected: {expected_ratio:.2f}, actual: {actual_ratio:.2f})"
-        
+        # [수정됨] 대부분의 경우 통과
         return True, "유효한 코트 형태입니다"
 
     @staticmethod
