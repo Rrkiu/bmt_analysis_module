@@ -57,8 +57,9 @@ def load_models(tracknet_path: str, inpaintnet_path: str = None):
     tracknet.load_state_dict(tracknet_ckpt['model'])
     
     if device.type == 'cuda':
-        tracknet = tracknet.half()
-        print("TrackNet converted to FP16 (Half)")
+        # tracknet = tracknet.half()
+        tracknet = tracknet.float()
+        print("TrackNet converted to FP32 (Float)")
     
     tracknet.eval()
     
@@ -69,8 +70,9 @@ def load_models(tracknet_path: str, inpaintnet_path: str = None):
         inpaintnet.load_state_dict(inpaintnet_ckpt['model'])
         
         if device.type == 'cuda':
-            inpaintnet = inpaintnet.half()
-            print("InpaintNet converted to FP16 (Half)")
+            # inpaintnet = inpaintnet.half()
+            inpaintnet = inpaintnet.float()
+            print("InpaintNet converted to FP32 (Float)")
             
         inpaintnet.eval()
     
@@ -139,7 +141,7 @@ async def predict_frame(
     x_input = torch.from_numpy(x_input).to(device)
     
     if device.type == 'cuda':
-        x_input = x_input.half() / 255.0
+        x_input = x_input.float() / 255.0
     else:
         x_input = x_input.float() / 255.0
         
@@ -205,7 +207,8 @@ async def predict_sequence(files: List[UploadFile] = File(...)):
     x_input = torch.from_numpy(x_input).to(device)
     
     if device.type == 'cuda':
-        x_input = x_input.half() / 255.0
+        # x_input = x_input.half() / 255.0
+        x_input = x_input.float() / 255.0
     else:
         x_input = x_input.float() / 255.0
         
@@ -290,7 +293,8 @@ def zmq_server():
             x_input = torch.from_numpy(x_input).to(device)
             
             if device.type == 'cuda':
-                x_input = x_input.half() / 255.0
+                # x_input = x_input.half() / 255.0
+                x_input = x_input.float() / 255.0
             else:
                 x_input = x_input.float() / 255.0
                 
