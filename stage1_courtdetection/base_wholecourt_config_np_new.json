@@ -1,0 +1,38 @@
+{
+    "test_cases": [
+        {
+            "name": "session_46c389d2",
+            "image_path": "/mnt/b/cd_p/bmt_demo/_adutils/process_sample/test_output/46c389d2-feac-4204-84b8-052aebf76d5c_result.jpg",
+            "area": [
+                [
+                    977,
+                    828
+                ],
+                [
+                    1751,
+                    826
+                ],
+                [
+                    2691,
+                    1410
+                ],
+                [
+                    8,
+                    1418
+                ]
+            ],
+            "description": "실제 세션 이미지 - 정면 촬영"
+        }
+    ],
+    "algorithms": [
+        "color_filter",
+        "canny_hough",
+        "adaptive_threshold",
+        "combined"
+    ],
+    "visualization": {
+        "save_intermediate": true,
+        "show_corners": true,
+        "show_lines": true
+    }
+}

@@ -80,16 +80,18 @@ class VideoAnalysisService:
         프레임 처리 및 오버레이
         """
         # 비디오 탐색(Seek) 감지: 
-        # 1초 이상 뒤로 가거나, 5초 이상 앞으로 갑자기 뛰는 경우에만 리셋 (미세한 지터 허용)
-        is_seek = (video_time < self.last_video_time - 1.0) or (video_time > self.last_video_time + 5.0)
+        # 0.5초 이상 뒤로 가거나(반복 재생 포함), 5초 이상 앞으로 갑자기 뛰는 경우 리셋
+        is_seek = (video_time < self.last_video_time - 0.5) or (video_time > self.last_video_time + 5.0)
         
         if is_seek:
             print(f"🔄 Video Seek Detected ({self.last_video_time:.2f}s -> {video_time:.2f}s). Resetting detector.")
             self.landing_detector.reset()
             self.last_landing_info = None
-            self.last_last_landing_frame = -100 # 프레임 카운트도 초기화
+            self.last_landing_frame = -100  # 프레임 카운트 초기화 (오타 수정)
+            self.last_landing_time = -10.0  # 낙하 시간도 초기화
             self.last_world_pos = None
             self.is_last_in_court = False
+            self.frame_counter = 0  # 프레임 카운터도 리셋하여 완전한 상태 초기화
             
         self.last_video_time = video_time
         processed = frame.copy()

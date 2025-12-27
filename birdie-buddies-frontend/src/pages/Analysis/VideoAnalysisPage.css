@@ -1,0 +1,232 @@
+/* VideoAnalysisPage.css */
+
+.video-analysis-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.video-analysis-page h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.video-analysis-page h2 {
+    color: #555;
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
+/* Session Info */
+.session-info {
+    background: #e8f5e9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.session-info p {
+    margin: 5px 0;
+}
+
+.session-info code {
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Upload Section */
+.upload-section {
+    background: #f5f5f5;
+    padding: 40px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.upload-button {
+    padding: 15px 30px;
+    font-size: 18px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.upload-button:hover {
+    background: #0056b3;
+}
+
+.hint {
+    color: #666;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* Video Section */
+.video-section {
+    margin-top: 30px;
+}
+
+.video-container {
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+/* Video Controls */
+.video-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.control-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s;
+    white-space: nowrap;
+}
+
+.control-button:hover {
+    background: #218838;
+}
+
+.time-display {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    color: #333;
+    white-space: nowrap;
+}
+
+.seek-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ddd;
+}
+
+.seek-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #007bff;
+    cursor: pointer;
+}
+
+.seek-bar::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #007bff;
+    cursor: pointer;
+    border: none;
+}
+
+/* Video Info */
+.video-info {
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin-bottom: 20px;
+}
+
+.video-info p {
+    margin: 5px 0;
+    color: #555;
+}
+
+/* Analysis Section */
+.analysis-section {
+    background: #fff3cd;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.analyze-button {
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.analyze-button:hover {
+    background: #ee5a52;
+}
+
+/* [추가됨 - Step 3] Stop Button */
+.stop-button {
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.stop-button:hover {
+    background: #c82333;
+}
+
+/* Back Button */
+.back-button {
+    margin-top: 30px;
+    padding: 10px 20px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.back-button:hover {
+    background: #5a6268;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .video-analysis-page {
+        padding: 10px;
+    }
+
+    .video-controls {
+        flex-wrap: wrap;
+    }
+
+    .seek-bar {
+        width: 100%;
+        order: 3;
+    }
+
+    .upload-section {
+        padding: 20px;
+    }
+}
