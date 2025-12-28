@@ -1,0 +1,15 @@
+{
+  "mean_angles_deg": {
+    "cluster0": 2.5892678066587322,
+    "cluster1": 100.29128993222668
+  },
+  "chosen": {
+    "lengthwise_angle": 100.29128993222668,
+    "crosswise_angle": 2.5892678066587322
+  },
+  "num_segments": 112,
+  "num_lines": {
+    "cluster0": 3,
+    "cluster1": 2
+  }
+}
