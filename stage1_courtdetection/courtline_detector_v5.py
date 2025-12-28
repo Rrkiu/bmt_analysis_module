@@ -742,3 +742,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python courtline_detector_v5.py  /mnt/b/cd_p/bmt_demo/stage1_courtdetection/niceangle_wide_halfcourt.json

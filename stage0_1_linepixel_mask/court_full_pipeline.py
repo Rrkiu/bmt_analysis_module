@@ -9,6 +9,9 @@ import math
 import cv2
 import numpy as np
 
+import csv
+import math
+
 
 # ============================================================
 # IO utils
@@ -38,6 +41,146 @@ def ensure_odd_positive(x: int, minimum: int = 1) -> int:
     if x % 2 == 0:
         x += 1
     return x
+
+
+def _seg_get_p1p2(seg):
+    """
+    seg가 dict({"p1":(x,y),"p2":(x,y)}) 이거나,
+    (x1,y1,x2,y2) 같은 list/tuple 형태여도 모두 처리.
+    """
+    if isinstance(seg, dict):
+        p1 = seg["p1"]
+        p2 = seg["p2"]
+        return (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1]))
+    # list/tuple
+    if isinstance(seg, (list, tuple)):
+        if len(seg) == 4:
+            x1, y1, x2, y2 = seg
+            return (int(x1), int(y1)), (int(x2), int(y2))
+        if len(seg) == 2 and all(isinstance(p, (list, tuple)) and len(p) == 2 for p in seg):
+            p1, p2 = seg
+            return (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1]))
+    raise TypeError(f"Unknown segment format: {type(seg)} / {seg}")
+
+def segment_angle_signed_deg(seg):
+    """
+    부호 포함 각도 [-90, +90) 로 정규화.
+    - 수평: 0 근처
+    - 우상향(양의 기울기): +각
+    - 좌상향(음의 기울기): -각
+    """
+    (x1, y1), (x2, y2) = _seg_get_p1p2(seg)
+    dx = x2 - x1
+    dy = y2 - y1
+    th = math.degrees(math.atan2(dy, dx))  # [-180,180]
+    # 방향성 없는 "선"으로 보고 [-90,90)로 접기
+    while th < -90.0:
+        th += 180.0
+    while th >= 90.0:
+        th -= 180.0
+    return th
+
+def cluster_segments_3way_signed(segs, horiz_thr_deg=20.0):
+    """
+    3분류(결정적 규칙):
+      label 0: 가로(|theta| <= horiz_thr)
+      label 1: 우사선(theta > horiz_thr)
+      label 2: 좌사선(theta < -horiz_thr)
+    반환:
+      labels(list[int]), stats(dict)
+    """
+    labels = []
+    thetas = []
+    for s in segs:
+        th = segment_angle_signed_deg(s)
+        thetas.append(th)
+        if abs(th) <= horiz_thr_deg:
+            labels.append(0)
+        elif th > 0:
+            labels.append(1)
+        else:
+            labels.append(2)
+
+    # 로그용 통계
+    cnt0 = sum(1 for t in labels if t == 0)
+    cnt1 = sum(1 for t in labels if t == 1)
+    cnt2 = sum(1 for t in labels if t == 2)
+    stats = {
+        "horiz_thr_deg": float(horiz_thr_deg),
+        "count_horiz": int(cnt0),
+        "count_pos_slope": int(cnt1),
+        "count_neg_slope": int(cnt2),
+        "theta_min": float(np.min(thetas)) if len(thetas) else None,
+        "theta_max": float(np.max(thetas)) if len(thetas) else None,
+        "theta_mean": float(np.mean(thetas)) if len(thetas) else None,
+    }
+    return labels, stats
+
+def save_segments_csv(path, segs, labels=None, W=None, H=None):
+    """
+    디버그용 CSV 저장: seg 포맷(dict/tuple) 모두 대응.
+    """
+    path = str(path)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        wr = csv.writer(f)
+        wr.writerow([
+            "idx","label",
+            "x1","y1","x2","y2",
+            "dx","dy","len",
+            "mid_x","mid_y",
+            "theta_signed_deg",
+            "W","H"
+        ])
+        for i, s in enumerate(segs):
+            (x1,y1),(x2,y2) = _seg_get_p1p2(s)
+            dx = x2 - x1
+            dy = y2 - y1
+            L = math.hypot(dx, dy)
+            mx = 0.5*(x1+x2)
+            my = 0.5*(y1+y2)
+            th = segment_angle_signed_deg(s)
+            lab = labels[i] if (labels is not None and i < len(labels)) else ""
+            wr.writerow([i, lab, x1,y1,x2,y2, dx,dy, f"{L:.3f}", f"{mx:.2f}", f"{my:.2f}", f"{th:.3f}", W, H])
+
+def draw_segments_overlay_with_angle_text(bgr, segs, labels=None, colors=None, topN=60):
+    """
+    각도 텍스트까지 찍는 디버그 오버레이(길이 상위 topN만).
+    """
+    overlay = bgr.copy()
+    # 세그먼트 길이로 정렬
+    lens = []
+    for i, s in enumerate(segs):
+        (x1,y1),(x2,y2) = _seg_get_p1p2(s)
+        L = (x2-x1)**2 + (y2-y1)**2
+        lens.append((L, i))
+    lens.sort(reverse=True)
+    keep = set(i for _, i in lens[:min(topN, len(lens))])
+
+    if colors is None:
+        colors = [(0,255,0),(0,0,255),(255,0,0)]
+    if labels is None:
+        labels = [0]*len(segs)
+
+    for i, s in enumerate(segs):
+        (x1,y1),(x2,y2) = _seg_get_p1p2(s)
+        c = colors[labels[i] % len(colors)]
+        cv2.line(overlay, (x1,y1), (x2,y2), c, 2, cv2.LINE_AA)
+
+        if i in keep:
+            th = segment_angle_signed_deg(s)
+            mx = int(0.5*(x1+x2))
+            my = int(0.5*(y1+y2))
+            cv2.putText(
+                overlay,
+                f"{th:+.1f}",
+                (mx, my),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                c,
+                1,
+                cv2.LINE_AA
+            )
+    return overlay
 
 
 # ============================================================
@@ -567,6 +710,24 @@ def kmeans_two_angle_clusters(segs):
         ang = (math.degrees(th) % 180.0)
         mean_angles.append(ang)
 
+    def ang_dist_180(a, b):
+            # both in degrees, modulo 180
+            a = a % 180.0
+            b = b % 180.0
+            d = abs(a - b)
+            return min(d, 180.0 - d)
+
+    # --- after computing labels and mean_angles ---
+    # decide which cluster is "horizontal-like" (closer to 0 deg)
+    h_idx = 0 if ang_dist_180(mean_angles[0], 0.0) <= ang_dist_180(mean_angles[1], 0.0) else 1
+    v_idx = 1 - h_idx
+
+    # remap labels so: 0 = horizontal cluster, 1 = vertical cluster
+    remap = {h_idx: 0, v_idx: 1}
+    labels = [remap[l] for l in labels]
+    mean_angles = [mean_angles[h_idx], mean_angles[v_idx]]
+    print("[05] mean_angles:", mean_angles)
+
     return labels, mean_angles
 
 
@@ -973,6 +1134,10 @@ def main():
     parser.add_argument("--peak_min_prom", type=float, default=0.20)
     parser.add_argument("--peak_min_dist", type=int, default=10)
 
+    parser.add_argument("--horiz_thr", type=float, default=20.0, help="Signed-angle threshold (deg) for horizontal cluster")
+
+
+
     args = parser.parse_args()
 
     bgr = cv2.imread(args.input)
@@ -1024,19 +1189,46 @@ def main():
 
     for name, im in debug_mask.items():
         save_png(out_dir, f"01_mask_{name}", im)
-
     save_png(out_dir, "02_final_mask_for_lines", mask)
 
-    court_roi = make_court_roi(mask, top_cut_px=30, dilate_k=9)
+    # 02b) ROI gate from 02 (largest CC + optional top cut + dilate)
+    # court_roi = make_court_roi(mask, top_cut_px=30, dilate_k=9)
+    court_roi = make_court_roi(mask, top_cut_px=0, dilate_k=9)
     save_png(out_dir, "02b_court_roi_largestcc_topcut", court_roi)
 
+    # 03) Focused mask = precise mask (02) AND ROI gate (02b)
+    mask_focus = cv2.bitwise_and(mask, court_roi)
+    save_png(out_dir, "03_0_mask_focus_02_and_roi", mask_focus)
+
     # 2) Thinning -> skeleton
-    skel = zhang_suen_thinning(mask, max_iter=args.thin_iter)
-    save_png(out_dir, "03_skeleton", skel)
+    skel = zhang_suen_thinning(mask_focus, max_iter=args.thin_iter)
+
+    thick_for_hough = mask_focus.copy()
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    thick_for_hough = cv2.morphologyEx(thick_for_hough, cv2.MORPH_CLOSE, k, iterations=1)
+    save_png(out_dir, "03_1_thick_for_hough", thick_for_hough)
+
+    # 2.6) Remove thick blobs -> keep only thin line-like pixels for Hough
+    # dist: foreground(255) 내부에서 배경(0)까지의 거리 (대략 "두께" 지표)
+    dist = cv2.distanceTransform((thick_for_hough > 0).astype(np.uint8), cv2.DIST_L2, 3)
+
+    # <= 2.2 정도면 대략 1~4px 폭의 선 성분만 남는 느낌 (이미지에 따라 1.8~3.0 튜닝)
+    dt_th = getattr(args, "dt_th", 2.0)
+    thin_for_hough = (dist <= dt_th).astype(np.uint8) * 255
+
+    # 약간 정리
+    k3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    thin_for_hough = cv2.morphologyEx(thin_for_hough, cv2.MORPH_OPEN, k3, iterations=1)
+
+    save_png(out_dir, "03_2_thin_for_hough_dt", thin_for_hough)
+
+    # Hough는 "엣지"에 주는 게 더 안정적
+    edges_for_hough = cv2.Canny(thin_for_hough, 50, 150)
+    save_png(out_dir, "03_3_edges_for_hough", edges_for_hough)
 
     # 3) Hough segments
     segs = segments_from_hough(
-        skel,
+        edges_for_hough,
         min_len=args.min_len,
         max_gap=args.max_gap,
         thresh=args.hough_thresh
@@ -1047,24 +1239,127 @@ def main():
     segs = filter_segments_by_mask_overlap(
         segs,
         court_roi,
-        thickness=5,
-        min_overlap=0.45,
+        thickness=7,
+        min_overlap=0.30,
         require_midpoint_in_roi=False,
     )
 
     save_png(out_dir, "04b_segments_after_roi_filter", draw_segments_overlay(bgr, segs))
 
-    # 4) Angle clustering
-    seg_labels, mean_angles = kmeans_two_angle_clusters(segs)
-    cluster_colors = [(0,255,0), (0,0,255)]
-    seg_cluster_overlay = draw_segments_overlay(bgr, segs, labels=seg_labels, colors=cluster_colors, alpha=0.80)
-    save_png(out_dir, "05_segments_angle_clusters", seg_cluster_overlay)
 
-    if len(mean_angles) != 2:
+
+    def get_p1p2(s):
+        """
+        Accepts segment in multiple formats and returns:
+        p1=(x1,y1), p2=(x2,y2) as int tuples.
+        Supported:
+        - dict: {"p1":(x1,y1), "p2":(x2,y2)}
+        - list/tuple: [x1,y1,x2,y2] or ((x1,y1),(x2,y2))
+        - np.ndarray: [x1,y1,x2,y2] or [[x1,y1,x2,y2]]
+        """
+        # dict case
+        if isinstance(s, dict):
+            p1 = s.get("p1", None)
+            p2 = s.get("p2", None)
+            if p1 is None or p2 is None:
+                raise ValueError(f"dict seg missing p1/p2 keys: {s.keys()}")
+            return (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1]))
+
+        # numpy case
+        if isinstance(s, np.ndarray):
+            a = s.reshape(-1).tolist()
+            if len(a) < 4:
+                raise ValueError(f"ndarray seg shape unexpected: {s.shape}")
+            x1,y1,x2,y2 = a[:4]
+            return (int(x1), int(y1)), (int(x2), int(y2))
+
+        # list/tuple case
+        if isinstance(s, (list, tuple)):
+            # ((x1,y1),(x2,y2))
+            if len(s) == 2 and isinstance(s[0], (list, tuple)) and isinstance(s[1], (list, tuple)):
+                x1,y1 = s[0]
+                x2,y2 = s[1]
+                return (int(x1), int(y1)), (int(x2), int(y2))
+
+            # [x1,y1,x2,y2]
+            if len(s) >= 4 and all(isinstance(v, (int, float, np.integer, np.floating)) for v in s[:4]):
+                x1,y1,x2,y2 = s[:4]
+                return (int(x1), int(y1)), (int(x2), int(y2))
+
+        raise TypeError(f"Unsupported segment type: {type(s)} / value={s}")
+
+    def seg_mid(s):
+        (x1,y1),(x2,y2) = get_p1p2(s)
+        return ((x1 + x2) * 0.5, (y1 + y2) * 0.5)
+
+    def seg_len(s):
+        (x1,y1),(x2,y2) = get_p1p2(s)
+        dx = x2 - x1
+        dy = y2 - y1
+        return math.hypot(dx, dy), dx, dy
+
+    def angle_deg_0_180(s):
+        (x1,y1),(x2,y2) = get_p1p2(s)
+        dx = x2 - x1
+        dy = y2 - y1
+        return (math.degrees(math.atan2(dy, dx)) % 180.0)
+
+    def save_segments_csv(path, segs, labels=None, roi_overlap=None, W=None, H=None):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            wr = csv.writer(f)
+            wr.writerow([
+                "idx","x1","y1","x2","y2","dx","dy","len","angle_deg",
+                "label","mid_x","mid_y","roi_overlap","norm_x","norm_y"
+            ])
+            for i, s in enumerate(segs):
+                (x1,y1),(x2,y2) = get_p1p2(s)
+                L, dx, dy = seg_len(s)
+                ang = angle_deg_0_180(s)
+                mx, my = seg_mid(s)
+                lab = labels[i] if labels is not None and i < len(labels) else -1
+                ov  = roi_overlap[i] if roi_overlap is not None and i < len(roi_overlap) else -1
+                nx = (mx / max(1, W)) if W else -1
+                ny = (my / max(1, H)) if H else -1
+                wr.writerow([i,x1,y1,x2,y2,dx,dy,L,ang,lab,mx,my,ov,nx,ny])
+
+
+    # 4) Angle clustering (3-way, signed)
+    seg_labels, ang_stats = cluster_segments_3way_signed(segs, horiz_thr_deg=args.horiz_thr)
+
+    # 3클러스터 색상(가로/우사선/좌사선)
+    cluster_colors = [
+        (0, 255, 0),   # label 0: horizontal-ish
+        (0, 0, 255),   # label 1: +slope
+        (255, 0, 0),   # label 2: -slope
+    ]
+
+    # 기존 overlay가 alpha 지원하는 draw_segments_overlay를 쓰고 싶으면, 네 기존 함수를 그대로 써도 됨
+    seg_cluster_overlay = draw_segments_overlay(bgr, segs, labels=seg_labels, colors=cluster_colors, alpha=0.80)
+    save_png(out_dir, "05_segments_angle_clusters_3way", seg_cluster_overlay)
+
+    # 각도 텍스트까지 찍는 디버그 오버레이
+    save_png(out_dir, "05b_segments_angle_text", draw_segments_overlay_with_angle_text(bgr, segs, labels=seg_labels, colors=cluster_colors, topN=80))
+
+    # CSV 저장(원인 분석 핵심)
+    H, W = bgr.shape[:2]
+    save_segments_csv(out_dir/"05_segments_debug.csv", segs, labels=seg_labels, W=W, H=H)
+
+    print(f"[05] angle stats: {ang_stats}")
+
+    # 05 단계 이후: 3-way cluster 유효성 체크
+    cnt_h = sum(1 for lb in seg_labels if lb == 0)  # horizontal
+    cnt_p = sum(1 for lb in seg_labels if lb == 1)  # +slope
+    cnt_n = sum(1 for lb in seg_labels if lb == 2)  # -slope
+
+    # 최소 기준(원하면 튜닝): 가로선은 충분, 사선은 각각 최소 3개 정도
+    min_h = getattr(args, "min_segs_horiz", 8)
+    min_d = getattr(args, "min_segs_diag", 3)
+
+    if (cnt_h < min_h) or (cnt_p < min_d) or (cnt_n < min_d):
         final = bgr.copy()
-        put_label(final, "Not enough segments for 2-cluster line extraction", 30, 40, (0,0,255))
+        put_label(final, f"Not enough segments: H={cnt_h}, +={cnt_p}, -={cnt_n}", 30, 40, (0,0,255))
         save_png(out_dir, "99_final_labeled_lines", final)
-        print("[WARN] Not enough segments for clustering.")
+        print(f"[WARN] Not enough segments for 3-way clustering: H={cnt_h}, +={cnt_p}, -={cnt_n}")
         return
 
     segs0 = [s for s, lb in zip(segs, seg_labels) if lb == 0]
@@ -1190,4 +1485,17 @@ python court_full_pipeline.py --input fullcourt_wide.jpg --out_root results_full
   --pre_dilate_iter 1 \
   --bridge_h 41 --bridge_v 41 \
   --hough_thresh 35 --min_len 35 --max_gap 35
+
+
+python court_full_pipeline.py --input fullcourt_wide.jpg --out_root results_full \
+  --pre_dilate_iter 1 \
+  --bridge_h 21 --bridge_v 21 \
+  --hough_thresh 35 --min_len 25 --max_gap 70
+
+
+python court_full_pipeline.py --input fullcourt_wide.jpg --out_root results_full \
+  --pre_dilate_iter 1 \
+  --bridge_h 21 --bridge_v 21 \
+  --hough_thresh 35 --min_len 35 --max_gap 35 \
+  --horiz_thr 18
 """

@@ -1,0 +1,38 @@
+{
+    "test_cases": [
+        {
+            "name": "session_2527308a",
+            "image_path": "/mnt/b/cd_p/bmt_demo/_adutils/process_sample/test_output/2527308a-0853-4f35-ac19-ae0687421463_result.jpg",
+            "area": [
+                [
+                    302,
+                    397
+                ],
+                [
+                    751,
+                    397
+                ],
+                [
+                    1023,
+                    560
+                ],
+                [
+                    13,
+                    555
+                ]
+            ],
+            "description": "실제 세션 이미지 - 정면 촬영"
+        }
+    ],
+    "algorithms": [
+        "color_filter",
+        "canny_hough",
+        "adaptive_threshold",
+        "combined"
+    ],
+    "visualization": {
+        "save_intermediate": true,
+        "show_corners": true,
+        "show_lines": true
+    }
+}
