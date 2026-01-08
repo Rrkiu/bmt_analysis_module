@@ -29,6 +29,10 @@ storage/results/*
 # Adutils
 _adutils/
 
+# Debug output directories
+stage0_1_linepixel_mask/
+stage1_courtdetection/
+
 # Frontend (Node.js / React / Vite)
 node_modules/
 dist/
