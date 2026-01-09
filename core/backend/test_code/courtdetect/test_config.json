@@ -1,0 +1,38 @@
+{
+    "test_cases": [
+        {
+            "name": "session_3a24838e",
+            "image_path": "/mnt/b/cd_p/bmt_demo/storage/results/3a24838e-ec77-4b6c-8c75-c971bc55e070_result.jpg",
+            "area": [
+                [
+                    370,
+                    100
+                ],
+                [
+                    880,
+                    100
+                ],
+                [
+                    880,
+                    480
+                ],
+                [
+                    370,
+                    480
+                ]
+            ],
+            "description": "실제 세션 이미지 - 정면 촬영"
+        }
+    ],
+    "algorithms": [
+        "color_filter",
+        "canny_hough",
+        "adaptive_threshold",
+        "combined"
+    ],
+    "visualization": {
+        "save_intermediate": true,
+        "show_corners": true,
+        "show_lines": true
+    }
+}
