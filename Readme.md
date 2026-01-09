@@ -229,9 +229,23 @@ docker restart tracknet_api
 - 5173: 프론트엔드 Vite
 
 ### **모델 파일 없음**
-TrackNet 모델 파일 필요:
-- 경로: `trackernet/TrackNetV3/ckpts/TrackNet_best.pt`
-- 별도 다운로드 필요 (Git LFS 또는 외부 링크)
+
+TrackNet 모델 파일은 용량이 커서 Git에 포함되지 않습니다. 별도로 다운로드가 필요합니다.
+
+**필요한 파일**:
+- `core/trackernet/TrackNetV3/ckpts/TrackNet_best.pt` (셔틀콕 추적 모델)
+- `core/trackernet/TrackNetV3/ckpts/InpaintNet_best.pt` (인페인팅 모델, 선택적)
+
+**다운로드 방법**:
+1. **원본 TrackNet 저장소에서 다운로드**
+   - [TrackNet V3 공식 저장소](https://github.com/alenzenx/TrackNetV3)
+   - Pre-trained 모델 다운로드 후 `ckpts/` 폴더에 배치
+
+**확인**:
+```bash
+ls -lh core/trackernet/TrackNetV3/ckpts/
+# TrackNet_best.pt 파일이 있어야 함
+```
 
 ---
 
@@ -242,23 +256,3 @@ TrackNet 모델 파일 필요:
 - [TrackNet 논문](https://arxiv.org/abs/2004.10569)
 
 ---
-
-## 🔄 개발 상태
-
-- ✅ **Phase 1**: 코트 캘리브레이션 (완료)
-- ✅ **Phase 2**: 셔틀콕 추적 (완료)
-- ✅ **Phase 3**: 낙하 감지 & 라인콜 (완료)
-- 🔄 **Phase 4**: YOLO 기반 코트 자동 검출 (진행 중)
-- 📋 **Phase 5**: 통계 분석 & 리포트 (예정)
-
----
-
-## 📞 문의
-
-프로젝트 관련 문의: [담당자 정보]
-
----
-
-## 📄 라이선스
-
-[라이선스 정보]
