@@ -2381,9 +2381,26 @@ python pl_1_ransac_twostage.py \
 
 
 # 1. 외삽 없이 실행 (검출된 포인트 범위만 사용)
+
+## pro_court
 python pl_1_ransac_cld_bup_ll_v7.py \
   --mask_input source_image/pro_mask_m_rm.png \
   --original_input source_image/pro_court.png \
-  --out_root results_no_extrapolation_v7 \
+  --out_root results_no_extrapolation_final \
   --no_extrapolation
+
+## pro_court_highangle
+python pl_1_ransac_cld_bup_ll_v7.py \
+  --mask_input source_image/pro_court_highangle_mask_raw.png \
+  --original_input source_image/pro_court_highangle.png \
+  --out_root results_no_extrapolation_final \
+  --no_extrapolation
+
+## amatuer_court
+python pl_1_ransac_cld_bup_ll_v7.py \
+  --mask_input source_image/anatuer_court_mask_raw.png \
+  --original_input source_image/amatuer_court.png \
+  --out_root results_no_extrapolation_final \
+  --no_extrapolation
+
 """
