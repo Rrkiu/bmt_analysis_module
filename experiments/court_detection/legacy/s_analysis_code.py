@@ -501,7 +501,23 @@ if __name__ == "__main__":
 python s_analysis_code.py --input source_image/pro_court.png --out_root s_analysis_results
 python s_analysis_code.py --input source_image/amatuer_court.jpg --out_root s_analysis_results
 
+# 2
 python s_analysis_code.py --input source_image/pro_court_highangle.png --out_root s_analysis_results
 
+# 3
+python s_analysis_code.py --input source_image/pro_court_topview.png --out_root s_analysis_results
+
+# 4
+python s_analysis_code.py --input source_image/amatuer_court.jpg --out_root s_analysis_results
+
+## s_analysis_code.py
+ - 원본 png 이미지에서, 멀티 컬러스페이스 채널 정보 기반 혼합마스크 생성
+ - 3개의 컬러스페이스 추출 결과를 종합하여 최종 마스크 생성
+
+# todo
+ 1. pro_court 기반 검출 수행 (완료)
+ 2. pro_court_highangle 기반 검출 수행
+ 3. pro_court_topview 기반 검출 수행
+ 4. amatuar_court 기반 검출 수행
 
 """

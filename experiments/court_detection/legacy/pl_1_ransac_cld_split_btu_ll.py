@@ -1333,7 +1333,7 @@ def two_stage_sideline_refinement(inlier_pts: np.ndarray, region_type: str,
 
 
 # ========================================================================
-# F) Endpoint Computation with Y-Quantiles
+# F) Endpoint Computation - Line Equation Based (IMPROVED!)
 # ========================================================================
 
 def x_at_y(p0: np.ndarray, d: np.ndarray, y: float) -> float:
@@ -1351,10 +1351,93 @@ def x_at_y(p0: np.ndarray, d: np.ndarray, y: float) -> float:
     return x
 
 
+def compute_endpoints_line_equation(p0: np.ndarray, d: np.ndarray,
+                                     inlier_pts: np.ndarray,
+                                     H: int, W: int,
+                                     top_margin: float = 0.02,
+                                     bot_margin: float = 0.02,
+                                     use_extrapolation: bool = True):
+    """
+    Compute line endpoints using LINE EQUATION instead of point percentiles.
+    
+    **KEY IMPROVEMENT**: 
+    - Previous method: Use percentile of detected points → misses line ends if points are sparse
+    - New method: Extrapolate line equation to image boundaries → captures full line extent
+    
+    Strategy:
+    1. Find the y-range where we have actual detected points (for reference)
+    2. Extrapolate the fitted line to extend beyond detected points
+    3. Use image boundaries (with margin) as the endpoint y-coordinates
+    4. Compute x at those y-coordinates using line equation
+    
+    Args:
+        p0, d: Line parameters (point and direction vector)
+        inlier_pts: Detected points (used for sanity check and fallback)
+        H, W: Image dimensions
+        top_margin: Margin from top of image as ratio (0.02 = 2%)
+        bot_margin: Margin from bottom of image as ratio
+        use_extrapolation: If True, extrapolate beyond detected points
+    
+    Returns:
+        (top_point, bottom_point, y_top, y_bot)
+    """
+    if len(inlier_pts) < 5:
+        return None, None, None, None
+    
+    # Get y-range of detected points
+    pts_y_min = inlier_pts[:, 1].min()
+    pts_y_max = inlier_pts[:, 1].max()
+    
+    if use_extrapolation:
+        # Use image boundaries with margin
+        y_top_target = H * top_margin
+        y_bot_target = H * (1 - bot_margin)
+        
+        # But don't extrapolate too far beyond detected points
+        # Allow extrapolation up to 20% of detected range
+        pts_y_range = pts_y_max - pts_y_min
+        max_extrapolation = pts_y_range * 0.3  # 30% extrapolation allowed
+        
+        y_top = max(pts_y_min - max_extrapolation, y_top_target)
+        y_bot = min(pts_y_max + max_extrapolation, y_bot_target)
+    else:
+        # Use detected point range (original behavior)
+        y_top = pts_y_min
+        y_bot = pts_y_max
+    
+    # Compute x-coordinates using line equation
+    x_top = x_at_y(p0, d, y_top)
+    x_bot = x_at_y(p0, d, y_bot)
+    
+    if x_top is None or x_bot is None:
+        return None, None, None, None
+    
+    # Sanity check: x should be within image bounds (with some tolerance)
+    tolerance = W * 0.1  # 10% tolerance
+    if x_top < -tolerance or x_top > W + tolerance:
+        # Line goes out of bounds at top, clip to detected range
+        y_top = pts_y_min
+        x_top = x_at_y(p0, d, y_top)
+    
+    if x_bot < -tolerance or x_bot > W + tolerance:
+        # Line goes out of bounds at bottom, clip to detected range
+        y_bot = pts_y_max
+        x_bot = x_at_y(p0, d, y_bot)
+    
+    if x_top is None or x_bot is None:
+        return None, None, None, None
+    
+    top_pt = np.array([x_top, y_top], dtype=np.float32)
+    bot_pt = np.array([x_bot, y_bot], dtype=np.float32)
+    
+    return top_pt, bot_pt, y_top, y_bot
+
+
 def compute_endpoints_yquant(inlier_pts: np.ndarray, p0: np.ndarray, d: np.ndarray,
                               top_pct: float, bot_pct: float):
     """
     Compute line endpoints using y-percentiles of inlier points.
+    (Legacy method - kept for compatibility)
     
     Args:
         inlier_pts: Nx2 array of inlier points
@@ -1387,6 +1470,93 @@ def compute_endpoints_yquant(inlier_pts: np.ndarray, p0: np.ndarray, d: np.ndarr
     return top_pt, bot_pt, y_top, y_bot
 
 
+def enforce_paired_top_constraint_line_equation(L_inliers: np.ndarray, R_inliers: np.ndarray,
+                                                  L_p0: np.ndarray, L_d: np.ndarray,
+                                                  R_p0: np.ndarray, R_d: np.ndarray,
+                                                  H: int, W: int,
+                                                  top_margin: float, bot_margin: float,
+                                                  max_top_y_diff: float,
+                                                  use_extrapolation: bool = True):
+    """
+    Compute endpoints using line equation with paired-top constraint.
+    
+    **IMPROVED VERSION**: Uses line extrapolation instead of point percentiles.
+    
+    The paired-top constraint ensures TL.y ≈ TR.y (top corners at same height).
+    
+    Strategy:
+    1. Compute endpoints for both lines using line equation extrapolation
+    2. If top y-coordinates differ too much:
+       - Use the LOWER (larger y) of the two as the unified top
+       - This ensures we stay within the detected range of BOTH lines
+       - Avoids extreme extrapolation errors
+    
+    Returns:
+        TL, TR, BL, BR, method_info, final_top_y_diff, yL_top, yR_top
+    """
+    # Compute endpoints using line equation
+    TL, BL, yL_top, yL_bot = compute_endpoints_line_equation(
+        L_p0, L_d, L_inliers, H, W, top_margin, bot_margin, use_extrapolation
+    )
+    
+    TR, BR, yR_top, yR_bot = compute_endpoints_line_equation(
+        R_p0, R_d, R_inliers, H, W, top_margin, bot_margin, use_extrapolation
+    )
+    
+    if TL is None or TR is None:
+        return None, None, None, None, "failed", None, None, None
+    
+    # Debug info
+    print(f"    Initial endpoints: TL=({TL[0]:.1f}, {TL[1]:.1f}), TR=({TR[0]:.1f}, {TR[1]:.1f})")
+    print(f"    Initial endpoints: BL=({BL[0]:.1f}, {BL[1]:.1f}), BR=({BR[0]:.1f}, {BR[1]:.1f})")
+    
+    # Check paired-top constraint
+    top_y_diff = abs(yL_top - yR_top)
+    
+    if top_y_diff <= max_top_y_diff:
+        # Constraint already satisfied
+        return TL, TR, BL, BR, "line_equation", top_y_diff, yL_top, yR_top
+    
+    # IMPORTANT: Use the LOWER top (larger y) to stay within both lines' detected range
+    # This is safer than using the higher top which might cause extreme extrapolation
+    unified_y_top = max(yL_top, yR_top)  # max y = lower position in image
+    
+    # But also check: unified_y_top shouldn't be too low (below midpoint)
+    # If it is, something is wrong - fall back to original values
+    image_midpoint = H * 0.5
+    if unified_y_top > image_midpoint:
+        print(f"    [WARNING] unified_y_top ({unified_y_top:.1f}) is below image midpoint, using original values")
+        return TL, TR, BL, BR, "line_equation_no_unify", top_y_diff, yL_top, yR_top
+    
+    # Recompute x at unified y_top
+    xL_top_new = x_at_y(L_p0, L_d, unified_y_top)
+    xR_top_new = x_at_y(R_p0, R_d, unified_y_top)
+    
+    if xL_top_new is None or xR_top_new is None:
+        # Fallback to original
+        return TL, TR, BL, BR, "line_equation_fallback", top_y_diff, yL_top, yR_top
+    
+    # Sanity check: the new x values should still make sense
+    # TL.x should be less than TR.x (left is left, right is right)
+    if xL_top_new >= xR_top_new:
+        print(f"    [WARNING] After unification, TL.x ({xL_top_new:.1f}) >= TR.x ({xR_top_new:.1f}), using original")
+        return TL, TR, BL, BR, "line_equation_no_unify", top_y_diff, yL_top, yR_top
+    
+    # Check that x values are within reasonable bounds
+    if xL_top_new < -W * 0.2 or xR_top_new > W * 1.2:
+        print(f"    [WARNING] Unified x values out of bounds, using original")
+        return TL, TR, BL, BR, "line_equation_no_unify", top_y_diff, yL_top, yR_top
+    
+    TL_new = np.array([xL_top_new, unified_y_top], dtype=np.float32)
+    TR_new = np.array([xR_top_new, unified_y_top], dtype=np.float32)
+    
+    final_top_y_diff = 0.0  # Now they're at the same y
+    
+    print(f"    Unified endpoints: TL=({TL_new[0]:.1f}, {TL_new[1]:.1f}), TR=({TR_new[0]:.1f}, {TR_new[1]:.1f})")
+    
+    return TL_new, TR_new, BL, BR, "line_equation_unified", final_top_y_diff, unified_y_top, unified_y_top
+
+
 def enforce_paired_top_constraint_yquant(L_inliers: np.ndarray, R_inliers: np.ndarray,
                                           L_p0: np.ndarray, L_d: np.ndarray,
                                           R_p0: np.ndarray, R_d: np.ndarray,
@@ -1395,6 +1565,7 @@ def enforce_paired_top_constraint_yquant(L_inliers: np.ndarray, R_inliers: np.nd
     """
     Compute endpoints with paired-top constraint: TL.y and TR.y should be close.
     If |TL.y - TR.y| > max_top_y_diff, iteratively tighten top_pct until satisfied.
+    (Legacy method - kept for compatibility)
     
     Returns:
         TL, TR, BL, BR, used_top_pct, final_top_y_diff, yL_top, yR_top
@@ -1581,7 +1752,7 @@ def estimate_4pts_from_mask(mask255: np.ndarray, base_vis: np.ndarray,
     save_image(out_dir, "05_left_line_final", overlay_points(mask255.shape, L_pts))
     save_image(out_dir, "05_right_line_final", overlay_points(mask255.shape, R_pts))
     
-    # Combined visualization
+    # Combined visualization (black background)
     vis_both = np.zeros((H, W, 3), dtype=np.uint8)
     for pt in L_pts.astype(np.int32):
         if 0 <= pt[1] < H and 0 <= pt[0] < W:
@@ -1590,10 +1761,17 @@ def estimate_4pts_from_mask(mask255: np.ndarray, base_vis: np.ndarray,
         if 0 <= pt[1] < H and 0 <= pt[0] < W:
             vis_both[pt[1], pt[0]] = (0, 255, 255)  # Yellow
     save_image(out_dir, "05_both_sidelines", vis_both)
-
-    # Save refined line visualizations
-    save_image(out_dir, "05_left_line_final", overlay_points(mask255.shape, L_pts))
-    save_image(out_dir, "05_right_line_final", overlay_points(mask255.shape, R_pts))
+    
+    # NEW: Overlay detected points on original image
+    vis_pts_overlay = to_bgr(base_vis.copy())
+    # Draw points with larger radius for visibility
+    for pt in L_pts.astype(np.int32):
+        if 0 <= pt[1] < H and 0 <= pt[0] < W:
+            cv2.circle(vis_pts_overlay, (pt[0], pt[1]), 2, (255, 255, 0), -1)  # Cyan filled
+    for pt in R_pts.astype(np.int32):
+        if 0 <= pt[1] < H and 0 <= pt[0] < W:
+            cv2.circle(vis_pts_overlay, (pt[0], pt[1]), 2, (0, 255, 255), -1)  # Yellow filled
+    save_image(out_dir, "05_detected_points_overlay", vis_pts_overlay)
 
     # Visualize both fitted lines
     vis_lines = to_bgr(base_vis.copy())
@@ -1601,31 +1779,49 @@ def estimate_4pts_from_mask(mask255: np.ndarray, base_vis: np.ndarray,
     draw_line_on_image(vis_lines, R_p0, R_d, (255, 255, 0), thickness=3)  # Yellow
     save_image(out_dir, "06_fitted_lines_overlay", vis_lines)
 
-    # Step 6: Compute endpoints with paired-top constraint
-    print("[STEP 6] Computing endpoints with y-quantiles and paired-top constraint...")
+    # Step 6: Compute endpoints using LINE EQUATION (IMPROVED!)
+    print("[STEP 6] Computing endpoints using line equation extrapolation...")
     
-    TL, TR, BL, BR, used_top_pct, top_dy, yL_top, yR_top = enforce_paired_top_constraint_yquant(
-        L_inliers=L_pts,
-        R_inliers=R_pts,
-        L_p0=L_p0, L_d=L_d,
-        R_p0=R_p0, R_d=R_d,
-        top_pct_init=args.top_pct,
-        bot_pct=args.bot_pct,
-        max_top_y_diff=args.max_top_y_diff
-    )
+    if args.use_line_equation:
+        # New method: Line equation based extrapolation
+        TL, TR, BL, BR, method_info, top_dy, yL_top, yR_top = enforce_paired_top_constraint_line_equation(
+            L_inliers=L_pts,
+            R_inliers=R_pts,
+            L_p0=L_p0, L_d=L_d,
+            R_p0=R_p0, R_d=R_d,
+            H=H, W=W,
+            top_margin=args.top_margin,
+            bot_margin=args.bot_margin,
+            max_top_y_diff=args.max_top_y_diff,
+            use_extrapolation=args.use_extrapolation
+        )
+        print(f"  Method: {method_info}")
+    else:
+        # Legacy method: Y-percentile based
+        TL, TR, BL, BR, method_info, top_dy, yL_top, yR_top = enforce_paired_top_constraint_yquant(
+            L_inliers=L_pts,
+            R_inliers=R_pts,
+            L_p0=L_p0, L_d=L_d,
+            R_p0=R_p0, R_d=R_d,
+            top_pct_init=args.top_pct,
+            bot_pct=args.bot_pct,
+            max_top_y_diff=args.max_top_y_diff
+        )
+        print(f"  Method: y_percentile (top_pct={method_info:.3f}%)")
 
     if TL is None:
         raise RuntimeError(
             "Endpoint computation failed. "
-            "Try adjusting two-stage parameters or checking mask quality."
+            "Try adjusting parameters or checking mask quality."
         )
 
-    print(f"  Used top_pct: {used_top_pct:.3f}%")
     print(f"  Top y-diff: {top_dy:.1f}px (max allowed: {args.max_top_y_diff}px)")
+    if yL_top is not None and yR_top is not None:
+        print(f"  TL.y={yL_top:.1f}, TR.y={yR_top:.1f}")
 
     # Visualize y-threshold debug info
     vis_thr = to_bgr(base_vis.copy())
-    cv2.putText(vis_thr, f"used_top_pct={used_top_pct:.3f}, top_dy={top_dy:.1f}px", 
+    cv2.putText(vis_thr, f"method={method_info}, top_dy={top_dy:.1f}px", 
                 (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (230, 230, 230), 2, cv2.LINE_AA)
     
     if yL_top is not None and yR_top is not None:
@@ -1665,14 +1861,14 @@ def estimate_4pts_from_mask(mask255: np.ndarray, base_vis: np.ndarray,
     # Detailed text file
     txt = out_dir / "estimated_4points.txt"
     with open(txt, "w") as f:
-        f.write("Estimated 4 points from side-lines only (Bottom-Up + Local Linearity)\n")
-        f.write(f"Method: Bottom-Up Sideline Extraction with Continuity + Linearity Check\n")
+        f.write("Estimated 4 points from side-lines only (Bottom-Up + Line Equation)\n")
+        f.write(f"Method: {method_info}\n")
         f.write(f"Bottom ratio: {args.bottom_ratio} (seed from bottom {args.bottom_ratio*100:.0f}%)\n")
         f.write(f"Seed params: y_bin={args.seed_y_bin}, tolerance={args.seed_tolerance}\n")
         f.write(f"Extend params: dist_th={args.extend_dist_th}, x_tol={args.extend_x_tolerance}\n")
         f.write(f"Continuity params: threshold={args.continuity_th}, y_bin={args.extend_y_bin}\n")
         f.write(f"Linearity params: k_neighbors={args.k_neighbors}, threshold={args.linearity_th}\n")
-        f.write(f"used_top_pct: {used_top_pct:.6f}\n")
+        f.write(f"Endpoint params: top_margin={args.top_margin}, bot_margin={args.bot_margin}\n")
         f.write(f"top_y_diff: {top_dy:.3f}px\n")
         f.write(f"left_points: {len(L_pts)}\n")
         f.write(f"right_points: {len(R_pts)}\n")
@@ -1793,11 +1989,27 @@ def main():
 
     # Endpoint computation parameters
     parser.add_argument("--top_pct", type=float, default=3.0,
-                        help="Initial top y-percentile for upper endpoints (smaller = higher up). Range: 0-100.")
+                        help="(Legacy) Initial top y-percentile for upper endpoints. Range: 0-100.")
     parser.add_argument("--bot_pct", type=float, default=97.0,
-                        help="Bottom y-percentile for lower endpoints (larger = lower down). Range: 0-100.")
+                        help="(Legacy) Bottom y-percentile for lower endpoints. Range: 0-100.")
     parser.add_argument("--max_top_y_diff", type=float, default=90.0,
-                        help="Maximum allowed |TL.y - TR.y| in pixels. If exceeded, tighten top_pct iteratively.")
+                        help="Maximum allowed |TL.y - TR.y| in pixels.")
+    
+    # Line Equation Based Endpoint Parameters (NEW - IMPROVED!)
+    parser.add_argument("--use_line_equation", action="store_true", default=True,
+                        help="Use line equation extrapolation for endpoints (recommended). "
+                             "Set --no_line_equation to use legacy percentile method.")
+    parser.add_argument("--no_line_equation", dest="use_line_equation", action="store_false",
+                        help="Disable line equation method, use legacy y-percentile method.")
+    parser.add_argument("--use_extrapolation", action="store_true", default=True,
+                        help="Extrapolate line beyond detected points to capture full extent.")
+    parser.add_argument("--no_extrapolation", dest="use_extrapolation", action="store_false",
+                        help="Disable extrapolation, use only detected point range.")
+    parser.add_argument("--top_margin", type=float, default=0.02,
+                        help="Margin from top of image as ratio (0.02 = 2%%). "
+                             "Smaller = endpoints closer to image top.")
+    parser.add_argument("--bot_margin", type=float, default=0.02,
+                        help="Margin from bottom of image as ratio (0.02 = 2%%).")
 
     args = parser.parse_args()
 
@@ -1869,13 +2081,29 @@ if __name__ == "__main__":
 """
 Example Usage:
 
-# Basic usage - Bottom-Up with Local Linearity Filter
+# Basic usage - Bottom-Up with Line Equation Extrapolation (recommended)
+python pl_1_ransac_cld_split_btu_ll.py \
+  --mask_input source_image/pro_mask_m_rm.png \
+  --original_input source_image/pro_court.png \
+  --out_root results_bottomup_ll_v2
+
+# Adjust endpoint margins (for different camera angles)
 python pl_1_ransac_twostage.py \
   --mask_input source_image/pro_mask_m_rm.png \
   --original_input source_image/pro_court.png \
-  --out_root results_bottomup
+  --out_root results_bottomup \
+  --top_margin 0.01 \
+  --bot_margin 0.01
 
-# Stricter linearity filter (for images with advertisement noise)
+# Use legacy percentile method (if line equation doesn't work well)
+python pl_1_ransac_twostage.py \
+  --mask_input source_image/pro_mask_m_rm.png \
+  --original_input source_image/pro_court.png \
+  --out_root results_bottomup \
+  --no_line_equation \
+  --top_pct 1.0
+
+# Stricter linearity filter (for heavy advertisement noise)
 python pl_1_ransac_twostage.py \
   --mask_input source_image/pro_mask_m_rm.png \
   --original_input source_image/pro_court.png \
@@ -1883,16 +2111,8 @@ python pl_1_ransac_twostage.py \
   --linearity_th 3.0 \
   --k_neighbors 15
 
-# Stricter continuity check
-python pl_1_ransac_twostage.py \
-  --mask_input source_image/pro_mask_m_rm.png \
-  --original_input source_image/pro_court.png \
-  --out_root results_bottomup \
-  --continuity_th 20.0 \
-  --extend_x_tolerance 12.0
-
 # Full example with all relevant parameters
-python pl_1_ransac_cld_split_btu_ll.py \
+python pl_1_ransac_twostage.py \
   --mask_input source_image/pro_mask_m_rm.png \
   --original_input source_image/pro_court.png \
   --out_root results_bottomup \
@@ -1909,7 +2129,7 @@ python pl_1_ransac_cld_split_btu_ll.py \
   --extend_y_bin 15 \
   --k_neighbors 12 \
   --linearity_th 4.0 \
-  --top_pct 2.0 \
-  --bot_pct 98.0 \
+  --top_margin 0.02 \
+  --bot_margin 0.02 \
   --max_top_y_diff 60
 """
