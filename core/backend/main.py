@@ -16,10 +16,9 @@ import json
 import base64
 from datetime import datetime
 
-from calibration_service import CalibrationService
-from visualization_service import VisualizationService
-from calibration_profile_service import CalibrationProfileService
-from video_analysis_service import VideoAnalysisService
+from modules.calibration import CalibrationService, CalibrationProfileService
+from modules.visualization import VisualizationService
+from modules.analysis import VideoAnalysisService
 from fastapi.staticfiles import StaticFiles
 from decorators import time_logger
 
