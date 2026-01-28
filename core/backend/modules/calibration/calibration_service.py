@@ -5,8 +5,14 @@ T자 기준점 기반 코트 영역 생성
 
 import numpy as np
 from typing import Dict, Tuple, List, Optional
+import sys
+from pathlib import Path
+# Add backend directory to path for constants import
+backend_dir = Path(__file__).parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 from constants import CourtDimensions, COURT_TEMPLATE, T_GUIDE
-from geometry import HomographyTransform, CourtGeometry
+from .geometry import HomographyTransform, CourtGeometry
 
 
 class CalibrationService:
@@ -63,18 +69,24 @@ class CalibrationService:
         사용자가 지정한 4개 코너로부터 캘리브레이션 수행
         
         Args:
-            court_corners_image: [TL, TR, BR, BL] 이미지 좌표
+            court_corners_image: [TL, TR, BR, BL] 이미지 좌표 (풀코트 복식 기준)
             image_shape: (height, width)
             
         Returns:
             dict: 캘리브레이션 결과
         """
-        user_court = self.court_template['user_court']
+        # FULL COURT 기준 world coordinates (DOUBLES WIDTH)
+        # 검출된 코너는 복식 코트의 외곽선
+        # TL, TR = 상대방 베이스라인 (-6.7m)
+        # BR, BL = 플레이어 베이스라인 (+6.7m)
+        half_width = CourtDimensions.DOUBLES_WIDTH / 2  # 3.05m (복식)
+        half_length = CourtDimensions.BACK_BOUNDARY_LINE  # 6.7m
+        
         court_corners_world = [
-            user_court['top_left'],      # TL: [-2.59, 0]
-            user_court['top_right'],     # TR: [ 2.59, 0]
-            user_court['bottom_right'],  # BR: [ 2.59, 6.7]
-            user_court['bottom_left']    # BL: [-2.59, 6.7]
+            [-half_width, -half_length],  # TL: 상대방 베이스라인 왼쪽 (복식)
+            [half_width, -half_length],   # TR: 상대방 베이스라인 오른쪽 (복식)
+            [half_width, half_length],    # BR: 플레이어 베이스라인 오른쪽 (복식)
+            [-half_width, half_length]    # BL: 플레이어 베이스라인 왼쪽 (복식)
         ]
         
         # Homography 계산
@@ -91,12 +103,12 @@ class CalibrationService:
             }
             
         # 픽셀/미터 비율은 가로/세로 평균으로 추정
-        # TL-TR 거리 (가로)
+        # TL-TR 거리 (가로, 복식)
         w_pixels = np.linalg.norm(src_points[0] - src_points[1])
-        w_meters = CourtDimensions.SINGLES_WIDTH
-        # TR-BR 거리 (세로)
-        h_pixels = np.linalg.norm(src_points[1] - src_points[2])
-        h_meters = CourtDimensions.BACK_BOUNDARY_LINE
+        w_meters = CourtDimensions.DOUBLES_WIDTH  # 6.1m
+        # TL-BL 거리 (세로, 풀코트)
+        h_pixels = np.linalg.norm(src_points[0] - src_points[3])
+        h_meters = CourtDimensions.TOTAL_LENGTH  # 13.4m (풀코트)
         
         pixels_per_meter = float((w_pixels/w_meters + h_pixels/h_meters) / 2)
         

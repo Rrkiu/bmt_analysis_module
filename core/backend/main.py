@@ -16,10 +16,9 @@ import json
 import base64
 from datetime import datetime
 
-from calibration_service import CalibrationService
-from visualization_service import VisualizationService
-from calibration_profile_service import CalibrationProfileService
-from video_analysis_service import VideoAnalysisService
+from modules.calibration import CalibrationService, CalibrationProfileService
+from modules.visualization import VisualizationService
+from modules.analysis import VideoAnalysisService
 from fastapi.staticfiles import StaticFiles
 from decorators import time_logger
 
@@ -32,12 +31,17 @@ app = FastAPI(
 
 # CORS 설정 (프론트엔드 연동용)
 # [수정됨 - 2025-12-23] credentials: include 지원을 위해 특정 origin 명시
+# [수정됨 - 2026-01-28] WSL 네트워크 주소 추가
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # Vite 개발 서버
         "http://localhost:5174",  # Vite 개발 서버 (포트 충돌 시)
         "http://localhost:8080",  # 기존 프론트엔드
+        "http://172.17.97.97:5173",  # WSL 네트워크 (Windows 브라우저 접속)
+        "http://172.17.97.97:5174",  # WSL 네트워크 (포트 5174)
+        "http://10.255.255.254:5173",  # WSL 네트워크 (대체 주소)
+        "http://10.255.255.254:5174",  # WSL 네트워크 (포트 5174, 대체)
     ],
     allow_credentials=True,  # credentials: include 허용
     allow_methods=["*"],
@@ -1098,6 +1102,218 @@ async def stream_video(path: str):
     except Exception as e:
         print(f"   ❌ 스트리밍 에러: {str(e)}")
         raise
+
+
+# ============================================================================
+# Milestone 5: Auto Court Detection Endpoint
+# ============================================================================
+
+class AutoDetectRequest(BaseModel):
+    """자동 코트 검출 요청"""
+    session_id: str
+    include_doubles: bool = True
+    overlay_alpha: float = 1.0
+    draw_corners: bool = True
+    save_overlay: bool = True
+
+
+class AutoDetectResponse(BaseModel):
+    """자동 코트 검출 응답"""
+    success: bool
+    session_id: str
+    message: str
+    confidence: Optional[dict] = None
+    corners: Optional[dict] = None
+    calibration: Optional[dict] = None
+    overlay_url: Optional[str] = None
+    metadata: Optional[dict] = None
+    error: Optional[str] = None
+
+
+@app.post("/api/detect-court-auto", response_model=AutoDetectResponse)
+@time_logger("Auto Detect")
+async def detect_court_auto(request: AutoDetectRequest):
+    """
+    자동 코트 검출 및 캘리브레이션 (Milestone 5)
+    
+    이 엔드포인트는:
+    1. 자동으로 코트 코너를 검출
+    2. 캘리브레이션 수행
+    3. 코트 라인 오버레이 생성
+    4. 신뢰도 점수 계산
+    5. 검증 UI용 데이터 반환
+    
+    Args:
+        request: AutoDetectRequest
+            - session_id: 업로드된 이미지 세션 ID
+            - include_doubles: 복식 라인 포함 여부
+            - overlay_alpha: 오버레이 투명도 (0.0-1.0)
+            - draw_corners: 코너 마커 표시 여부
+            - save_overlay: 오버레이 이미지 저장 여부
+            
+    Returns:
+        AutoDetectResponse with:
+        - success: 성공 여부
+        - confidence: 신뢰도 점수
+        - corners: 검출된 코너 좌표
+        - calibration: 캘리브레이션 정보
+        - overlay_url: 오버레이 이미지 URL
+        - metadata: 추가 메타데이터
+    """
+    from modules.court_detection.api_integration import detect_court_with_overlay
+    
+    print(f"\n🎯 자동 코트 검출 요청")
+    print(f"   Session ID: {request.session_id}")
+    print(f"   Include doubles: {request.include_doubles}")
+    print(f"   Overlay alpha: {request.overlay_alpha}")
+    
+    # 세션 확인
+    if request.session_id not in sessions:
+        print(f"   ❌ 세션을 찾을 수 없음")
+        return AutoDetectResponse(
+            success=False,
+            session_id=request.session_id,
+            message="세션을 찾을 수 없습니다",
+            error=f"Invalid session_id: {request.session_id}"
+        )
+    
+    session = sessions[request.session_id]
+    filepath = session['filepath']
+    
+    print(f"   이미지: {session['original_filename']}")
+    print(f"   크기: {session['width']}x{session['height']}")
+    
+    try:
+        # 이미지 로드
+        image = cv2.imread(filepath)
+        if image is None:
+            raise ValueError(f"Failed to load image: {filepath}")
+        
+        # 자동 검출 실행
+        print(f"   🔍 자동 검출 시작...")
+        result = detect_court_with_overlay(
+            image=image,
+            ensemble_mode='conservative',
+            use_extrapolation=False,
+            include_doubles=request.include_doubles,
+            overlay_alpha=request.overlay_alpha,
+            draw_corners=request.draw_corners,
+            return_separate_images=False
+        )
+        
+        if not result['success']:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"   ❌ 검출 실패: {error_msg}")
+            return AutoDetectResponse(
+                success=False,
+                session_id=request.session_id,
+                message="자동 검출 실패",
+                error=error_msg
+            )
+        
+        # 신뢰도 점수
+        confidence = result['confidence']
+        print(f"   📊 신뢰도: {confidence['overall']:.2%}")
+        print(f"      - Mask: {confidence['mask_quality']:.2%}")
+        print(f"      - Geometry: {confidence['geometry_quality']:.2%}")
+        print(f"      - Calibration: {confidence['calibration_quality']:.2%}")
+        
+        # 오버레이 이미지 저장
+        overlay_url = None
+        if request.save_overlay:
+            overlay_filename = f"{request.session_id}_overlay.jpg"
+            overlay_path = os.path.join(RESULT_DIR, overlay_filename)
+            cv2.imwrite(overlay_path, result['overlay_image'])
+            overlay_url = f"/storage/results/{overlay_filename}"
+            print(f"   💾 오버레이 저장: {overlay_filename}")
+        
+        # 세션에 캘리브레이션 결과 저장
+        session['calibrated'] = True
+        session['calibration_result'] = {
+            'homography_matrix': result['calibration']['homography_matrix'],
+            'pixels_per_meter': result['calibration']['pixels_per_meter'],
+            'court_corners_world': result['calibration']['court_corners_world'],
+            'court_corners_image': {
+                k: [float(v[0]), float(v[1])] 
+                for k, v in result['corners'].items()
+            }
+        }
+        session['auto_detect_confidence'] = confidence
+        session['auto_detect_time'] = datetime.now().isoformat()
+        
+        # 응답 준비
+        corners_json = {
+            k: [float(v[0]), float(v[1])] 
+            for k, v in result['corners'].items()
+        }
+        
+        print(f"   ✅ 자동 검출 완료")
+        
+        return AutoDetectResponse(
+            success=True,
+            session_id=request.session_id,
+            message="자동 검출 성공",
+            confidence=confidence,
+            corners=corners_json,
+            calibration={
+                'pixels_per_meter': result['calibration']['pixels_per_meter'],
+                'homography_matrix': result['calibration']['homography_matrix']
+            },
+            overlay_url=overlay_url,
+            metadata={
+                'image_shape': result['metadata']['image_shape'],
+                'include_doubles': request.include_doubles,
+                'detection_time': session['auto_detect_time']
+            }
+        )
+        
+    except Exception as e:
+        print(f"   ❌ 에러 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return AutoDetectResponse(
+            success=False,
+            session_id=request.session_id,
+            message="자동 검출 중 오류 발생",
+            error=str(e)
+        )
+
+
+@app.get("/api/detect-court-auto/status/{session_id}")
+async def get_auto_detect_status(session_id: str):
+    """
+    자동 검출 상태 조회
+    
+    Args:
+        session_id: 세션 ID
+        
+    Returns:
+        검출 상태 및 결과
+    """
+    print(f"\n📊 자동 검출 상태 조회: {session_id}")
+    
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다")
+    
+    session = sessions[session_id]
+    
+    if not session.get('calibrated'):
+        return JSONResponse(content={
+            "success": True,
+            "session_id": session_id,
+            "status": "not_detected",
+            "message": "아직 검출되지 않았습니다"
+        })
+    
+    return JSONResponse(content={
+        "success": True,
+        "session_id": session_id,
+        "status": "detected",
+        "confidence": session.get('auto_detect_confidence'),
+        "calibration": session.get('calibration_result'),
+        "detection_time": session.get('auto_detect_time')
+    })
 
 
 if __name__ == "__main__":

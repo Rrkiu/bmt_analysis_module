@@ -37,6 +37,11 @@ storage/calibrations/*
 !storage/results/.gitkeep
 !storage/calibrations/.gitkeep
 
+# Core Backend Storage
+core/storage/*
+!core/storage/.gitkeep
+
+
 # ============================================================================
 # Experiments (리팩토링 후 - 전체 무시)
 # ============================================================================
@@ -87,3 +92,7 @@ pnpm-debug.log*
 *.bak
 *~
 .*.swp
+
+
+#
+experiments_record

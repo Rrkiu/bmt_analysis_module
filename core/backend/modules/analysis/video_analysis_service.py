@@ -8,10 +8,16 @@ import cv2
 import numpy as np
 from typing import Optional, Tuple, Dict
 import time
-from tracknet_service import TrackNetService
-from shuttlecock_tracker import ShuttlecockLandingDetector
-from visualization_service import VisualizationService
-from geometry import HomographyTransform, CourtGeometry
+import sys
+from pathlib import Path
+# Add backend directory to path
+backend_dir = Path(__file__).parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+from ..tracking import TrackNetService
+from ..tracking.shuttlecock_tracker import ShuttlecockLandingDetector
+from ..visualization import VisualizationService
+from ..calibration.geometry import HomographyTransform, CourtGeometry
 from decorators import time_logger
 
 
