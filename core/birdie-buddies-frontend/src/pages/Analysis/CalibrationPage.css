@@ -156,6 +156,231 @@
     background: #c82333;
 }
 
+/* Auto-Detection Loading */
+.auto-detect-loading {
+    text-align: center;
+    padding: 60px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 30px;
+}
+
+.auto-detect-loading h2 {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Auto-Detection Result */
+.auto-detect-result {
+    margin-top: 30px;
+}
+
+.confidence-card {
+    padding: 25px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    border: 2px solid;
+}
+
+.confidence-card h3 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+}
+
+.confidence-excellent {
+    background: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+}
+
+.confidence-good {
+    background: #d1ecf1;
+    border-color: #17a2b8;
+    color: #0c5460;
+}
+
+.confidence-warning {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+}
+
+.confidence-poor {
+    background: #f8d7da;
+    border-color: #dc3545;
+    color: #721c24;
+}
+
+.confidence-overall {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+
+.confidence-value {
+    font-size: 32px;
+}
+
+.confidence-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.confidence-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.confidence-item span:first-child {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.confidence-item span:last-child {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Overlay Preview */
+.overlay-preview {
+    margin: 25px 0;
+}
+
+.overlay-preview h3 {
+    margin-bottom: 15px;
+    color: #555;
+}
+
+/* Corners Info */
+.corners-info {
+    margin: 25px 0;
+}
+
+.corners-info h3 {
+    margin-bottom: 15px;
+    color: #555;
+}
+
+.corners-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.corner-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.corner-label {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.corner-coords {
+    font-family: monospace;
+    color: #555;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.primary-button,
+.secondary-button {
+    flex: 1;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.primary-button {
+    background: #28a745;
+    color: white;
+}
+
+.primary-button:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.secondary-button {
+    background: #6c757d;
+    color: white;
+}
+
+.secondary-button:hover {
+    background: #5a6268;
+}
+
+/* Manual Mode */
+.manual-mode {
+    margin-top: 30px;
+}
+
+.manual-hint {
+    padding: 15px;
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+/* Video Analysis Button */
+.video-analysis-button {
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.video-analysis-button:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .calibration-page {
@@ -168,5 +393,17 @@
 
     .corner-selector button {
         flex-basis: calc(50% - 5px);
+    }
+
+    .confidence-details {
+        grid-template-columns: 1fr;
+    }
+
+    .corners-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons {
+        flex-direction: column;
     }
 }

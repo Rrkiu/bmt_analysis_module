@@ -74,6 +74,43 @@ export interface VideoListResponse {
     count: number;
 }
 
+export interface AutoDetectRequest {
+    session_id: string;
+    include_doubles?: boolean;
+    overlay_alpha?: number;
+    draw_corners?: boolean;
+    save_overlay?: boolean;
+}
+
+export interface AutoDetectResponse {
+    success: boolean;
+    session_id: string;
+    message: string;
+    confidence?: {
+        mask_quality: number;
+        geometry_quality: number;
+        calibration_quality: number;
+        overall: number;
+    };
+    corners?: {
+        TL: [number, number];
+        TR: [number, number];
+        BR: [number, number];
+        BL: [number, number];
+    };
+    calibration?: {
+        pixels_per_meter: number;
+        homography_matrix: number[][];
+    };
+    overlay_url?: string;
+    metadata?: {
+        image_shape: [number, number];
+        include_doubles: boolean;
+        detection_time: string;
+    };
+    error?: string;
+}
+
 // ============================================
 // API Functions
 // ============================================
@@ -151,6 +188,42 @@ export async function listVideos(): Promise<VideoListResponse> {
 
     if (!response.ok) {
         throw new Error(`Failed to list videos: ${response.statusText}`);
+    }
+
+    return response.json();
+}
+
+/**
+ * 자동 코트 검출 (Milestone 5)
+ */
+export async function autoDetectCourt(
+    request: AutoDetectRequest
+): Promise<AutoDetectResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/detect-court-auto`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Auto-detection API error:', errorData);
+        throw new Error(`Auto-detection failed: ${response.statusText} - ${JSON.stringify(errorData)}`);
+    }
+
+    return response.json();
+}
+
+/**
+ * 자동 검출 상태 조회
+ */
+export async function getAutoDetectStatus(sessionId: string): Promise<AutoDetectResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/detect-court-auto/status/${sessionId}`);
+
+    if (!response.ok) {
+        throw new Error(`Failed to get status: ${response.statusText}`);
     }
 
     return response.json();
