@@ -20,6 +20,7 @@ export interface UploadResponse {
         width: number;
         height: number;
         filename: string;
+        image_url?: string;  // 서버에 저장된 이미지 URL
     };
 }
 

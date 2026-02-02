@@ -45,10 +45,19 @@ export function useCalibration() {
         try {
             const response = await analysisAPI.uploadImage(file);
 
+            // 서버에서 제공하는 이미지 URL 사용 (blob URL 대신)
+            const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || 'http://localhost:8000';
+            const serverImageUrl = response.data.image_url
+                ? `${API_BASE_URL}${response.data.image_url}`
+                : URL.createObjectURL(file); // fallback
+
+            console.log('[useCalibration] Upload response:', response);
+            console.log('[useCalibration] Server image URL:', serverImageUrl);
+
             setState(prev => ({
                 ...prev,
                 sessionId: response.session_id,
-                imageUrl: URL.createObjectURL(file),
+                imageUrl: serverImageUrl,
                 imageSize: {
                     width: response.data.width,
                     height: response.data.height,

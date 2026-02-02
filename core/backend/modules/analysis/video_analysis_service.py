@@ -41,12 +41,22 @@ class VideoAnalysisService:
         self.tracknet_service = TrackNetService(session_id) if use_tracknet else None
         
         # 키 이름 정규화 (court_corners_image 또는 corners_image 둘 다 지원)
+        corners_data = None
         if 'court_corners_image' in calibration_data:
-            self.corners_image = np.array(calibration_data['court_corners_image'], dtype=np.int32)
+            corners_data = calibration_data['court_corners_image']
         elif 'corners_image' in calibration_data:
-            self.corners_image = np.array(calibration_data['corners_image'], dtype=np.int32)
+            corners_data = calibration_data['corners_image']
         else:
             raise ValueError("calibration_data에 'court_corners_image' 또는 'corners_image' 키가 필요합니다")
+        
+        # 딕셔너리 형태인 경우 (자동 검출 결과) -> 배열로 변환
+        if isinstance(corners_data, dict):
+            # 순서: TL, TR, BR, BL
+            corner_order = ['TL', 'TR', 'BR', 'BL']
+            self.corners_image = np.array([corners_data[k] for k in corner_order], dtype=np.int32)
+        else:
+            # 이미 리스트/배열 형태인 경우
+            self.corners_image = np.array(corners_data, dtype=np.int32)
         
         self.homography = np.array(calibration_data['homography_matrix'], dtype=np.float32)
         

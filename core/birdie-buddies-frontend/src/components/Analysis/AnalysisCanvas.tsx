@@ -120,6 +120,12 @@ function drawCourtOverlay(
     const corners = calibrationData.court_corners_image;
     if (!corners || corners.length !== 4) return;
 
+    // image_shape 안전성 체크
+    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
+        console.warn('calibrationData.image_shape is missing or invalid in drawCourtOverlay');
+        return;
+    }
+
     const scaleX = canvas.width / calibrationData.image_shape[1];
     const scaleY = canvas.height / calibrationData.image_shape[0];
 
@@ -163,6 +169,12 @@ function drawShuttlecock(
     shuttlecock: ShuttlecockData,
     calibrationData: CalibrationData
 ) {
+    // image_shape 안전성 체크
+    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
+        console.warn('calibrationData.image_shape is missing or invalid');
+        return;
+    }
+
     const scaleX = canvas.width / calibrationData.image_shape[1];
     const scaleY = canvas.height / calibrationData.image_shape[0];
 
@@ -197,6 +209,12 @@ function drawLanding(
     landing: LandingData,
     calibrationData: CalibrationData
 ) {
+    // image_shape 안전성 체크
+    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
+        console.warn('calibrationData.image_shape is missing or invalid in drawLanding');
+        return;
+    }
+
     const color = landing.is_in_court ? '#00ff00' : '#ff0000';
     const scaleX = canvas.width / calibrationData.image_shape[1];
     const scaleY = canvas.height / calibrationData.image_shape[0];

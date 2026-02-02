@@ -215,7 +215,8 @@ async def upload_image(file: UploadFile = File(...)):
             "data": {
                 "width": width,
                 "height": height,
-                "filename": file.filename
+                "filename": file.filename,
+                "image_url": f"/storage/uploads/{filename}"  # 프론트엔드에서 이미지 표시용
             }
         })
     
@@ -1063,10 +1064,21 @@ async def get_session_calibration(session_id: str):
         raise HTTPException(status_code=400, detail="캘리브레이션이 완료되지 않았습니다")
     
     print(f"   ✅ 캘리브레이션 데이터 반환")
+    # 프론트엔드 호환성을 위해 court_corners_image를 배열 형태로 정규화
+    calibration_result = session['calibration_result'].copy()
+    corners_data = calibration_result.get('court_corners_image')
+    
+    if isinstance(corners_data, dict):
+        # 딕셔너리 형태 {'TL': [x,y], ...} → 배열 [[x,y], ...]로 변환
+        corner_order = ['TL', 'TR', 'BR', 'BL']
+        calibration_result['court_corners_image'] = [
+            corners_data[k] for k in corner_order
+        ]
+    
     return JSONResponse(content={
         "success": True,
         "session_id": session_id,
-        "calibration_result": session['calibration_result']
+        "calibration_result": calibration_result
     })
 
 
@@ -1236,7 +1248,8 @@ async def detect_court_auto(request: AutoDetectRequest):
             'court_corners_image': {
                 k: [float(v[0]), float(v[1])] 
                 for k, v in result['corners'].items()
-            }
+            },
+            'image_shape': result['metadata']['image_shape']  # 프론트엔드 Canvas 스케일링에 필요
         }
         session['auto_detect_confidence'] = confidence
         session['auto_detect_time'] = datetime.now().isoformat()
