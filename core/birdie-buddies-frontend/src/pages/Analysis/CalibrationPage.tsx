@@ -48,6 +48,8 @@ export function CalibrationPage() {
 
     // 이미지 로드 시 Canvas에 그리기
     useEffect(() => {
+        console.log('[CalibrationPage] Image load effect triggered', { imageUrl, canvasRef: !!canvasRef.current, showManualMode });
+
         if (!imageUrl || !canvasRef.current) return;
 
         const canvas = canvasRef.current;
@@ -56,6 +58,7 @@ export function CalibrationPage() {
 
         const img = new Image();
         img.onload = () => {
+            console.log('[CalibrationPage] Image loaded successfully', { width: img.width, height: img.height });
             canvas.width = img.width;
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
@@ -64,8 +67,12 @@ export function CalibrationPage() {
             // 코너 그리기
             drawCorners(ctx);
         };
+        img.onerror = (error) => {
+            console.error('[CalibrationPage] Image load failed', { imageUrl, error });
+        };
         img.src = imageUrl;
-    }, [imageUrl]);
+        console.log('[CalibrationPage] Image src set to:', imageUrl);
+    }, [imageUrl, showManualMode]);
 
     // 코너 변경 시 다시 그리기
     useEffect(() => {
@@ -205,6 +212,11 @@ export function CalibrationPage() {
      * 수동 조정 모드로 전환
      */
     const handleSwitchToManual = () => {
+        console.log('[CalibrationPage] Switching to manual mode', {
+            currentMode: showManualMode,
+            imageUrl,
+            corners
+        });
         setShowManualMode(true);
         setDetectionMode('manual');
     };
