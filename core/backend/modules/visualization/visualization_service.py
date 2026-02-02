@@ -263,10 +263,10 @@ class VisualizationService:
         world_point: Optional[Tuple[float, float]] = None,
         is_in_court: bool = True,
         position: Tuple[int, int] = (1000, 50),
-        size: Tuple[int, int] = (200, 260) # w, h
+        size: Tuple[int, int] = (140, 280)  # 크기 축소: 200x260 → 140x280 (풀코트 비율)
     ) -> np.ndarray:
         """
-        우상단 미니맵 그리기
+        우상단 미니맵 그리기 (풀코트 기준)
         
         Args:
             image: 원본 이미지
@@ -289,49 +289,59 @@ class VisualizationService:
         
         # 미니맵 배경 (반투명 어두운 회색)
         overlay = img.copy()
-        cv2.rectangle(overlay, (mx - 10, my - 10), (mx + mw + 10, my + mh + 40), (40, 40, 40), -1)
+        cv2.rectangle(overlay, (mx - 10, my - 10), (mx + mw + 10, my + mh + 10), (40, 40, 40), -1)
         img = cv2.addWeighted(img, 0.7, overlay, 0.3, 0)
-        cv2.rectangle(img, (mx - 10, my - 10), (mx + mw + 10, my + mh + 40), (200, 200, 200), 2)
+        cv2.rectangle(img, (mx - 10, my - 10), (mx + mw + 10, my + mh + 10), (200, 200, 200), 2)
         
-        # 코트 외곽선 그리기
-        # 실세계 좌표 (-2.59, 0) ~ (2.59, 6.7)을 미니맵 (0, 0) ~ (mw, mh)로 변환
+        # 풀코트 좌표 변환 함수
+        # 실세계 좌표 (-3.05, 0) ~ (3.05, 13.4)을 미니맵 (0, 0) ~ (mw, mh)로 변환
         def world_to_mini(wx, wy):
-            # wx: -2.59 ~ 2.59 -> 0 ~ mw
-            # wy: 0 ~ 6.7 -> 0 ~ mh
-            mini_x = int(mx + (wx + 2.59) / 5.18 * mw)
-            mini_y = int(my + wy / 6.7 * mh)
+            # wx: -3.05 ~ 3.05 -> 0 ~ mw
+            # wy: 0 ~ 13.4 -> 0 ~ mh
+            mini_x = int(mx + (wx + 3.05) / 6.1 * mw)
+            mini_y = int(my + wy / 13.4 * mh)
             return (mini_x, mini_y)
         
-        # 코트 사각형
-        p1 = world_to_mini(-2.59, 0)
-        p2 = world_to_mini(2.59, 0)
-        p3 = world_to_mini(2.59, 6.7)
-        p4 = world_to_mini(-2.59, 6.7)
+        # 풀코트 외곽선
+        p1 = world_to_mini(-3.05, 0)
+        p2 = world_to_mini(3.05, 0)
+        p3 = world_to_mini(3.05, 13.4)
+        p4 = world_to_mini(-3.05, 13.4)
         pts = np.array([p1, p2, p3, p4], dtype=np.int32)
         cv2.polylines(img, [pts], True, (255, 255, 255), 2)
         
-        # 숏 서비스 라인 (1.98m)
-        ss1 = world_to_mini(-2.59, 1.98)
-        ss2 = world_to_mini(2.59, 1.98)
-        cv2.line(img, ss1, ss2, (200, 200, 200), 1)
+        # 네트 라인 (중앙, 6.7m)
+        net1 = world_to_mini(-3.05, 6.7)
+        net2 = world_to_mini(3.05, 6.7)
+        cv2.line(img, net1, net2, (255, 255, 0), 2)  # 노란색 네트
         
-        # 센터 라인 (1.98m ~ 6.7m)
-        cl1 = world_to_mini(0, 1.98)
-        cl2 = world_to_mini(0, 6.7)
-        cv2.line(img, cl1, cl2, (200, 200, 200), 1)
+        # 숏 서비스 라인 (양쪽)
+        # 아래쪽 (1.98m)
+        ss1_bottom = world_to_mini(-3.05, 1.98)
+        ss2_bottom = world_to_mini(3.05, 1.98)
+        cv2.line(img, ss1_bottom, ss2_bottom, (200, 200, 200), 1)
+        
+        # 위쪽 (11.42m = 13.4 - 1.98)
+        ss1_top = world_to_mini(-3.05, 11.42)
+        ss2_top = world_to_mini(3.05, 11.42)
+        cv2.line(img, ss1_top, ss2_top, (200, 200, 200), 1)
+        
+        # 센터 라인 (양쪽)
+        # 아래쪽 (1.98m ~ 6.7m)
+        cl1_bottom = world_to_mini(0, 1.98)
+        cl2_bottom = world_to_mini(0, 6.7)
+        cv2.line(img, cl1_bottom, cl2_bottom, (200, 200, 200), 1)
+        
+        # 위쪽 (6.7m ~ 11.42m)
+        cl1_top = world_to_mini(0, 6.7)
+        cl2_top = world_to_mini(0, 11.42)
+        cv2.line(img, cl1_top, cl2_top, (200, 200, 200), 1)
         
         # 낙하 지점 표시
         if world_point:
             px, py = world_to_mini(world_point[0], world_point[1])
             color = (0, 255, 0) if is_in_court else (0, 0, 255)
-            cv2.circle(img, (px, py), 6, color, -1)
-            cv2.circle(img, (px, py), 8, (255, 255, 255), 1)
-            
-            # 텍스트 표시
-            status_text = "IN" if is_in_court else "OUT"
-            cv2.putText(img, f"POS: {world_point[0]:.2f}, {world_point[1]:.2f}", (mx, my + mh + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(img, f"RESULT: {status_text}", (mx, my + mh + 35),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+            cv2.circle(img, (px, py), 5, color, -1)
+            cv2.circle(img, (px, py), 7, (255, 255, 255), 1)
         
         return img

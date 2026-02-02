@@ -128,7 +128,10 @@ export function useCalibration() {
     /**
      * 자동 코트 검출 실행
      */
-    const autoDetect = useCallback(async (sessionIdOverride?: string) => {
+    const autoDetect = useCallback(async (
+        sessionIdOverride?: string,
+        roi?: { x: number; y: number; width: number; height: number }
+    ) => {
         const targetSessionId = sessionIdOverride || state.sessionId;
 
         if (!targetSessionId) {
@@ -144,6 +147,7 @@ export function useCalibration() {
                 overlay_alpha: 1.0,
                 draw_corners: true,
                 save_overlay: true,
+                roi: roi, // ROI 정보 전달
             });
 
             if (!response.success) {

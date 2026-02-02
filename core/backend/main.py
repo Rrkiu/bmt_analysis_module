@@ -1148,6 +1148,7 @@ class AutoDetectRequest(BaseModel):
     overlay_alpha: float = 1.0
     draw_corners: bool = True
     save_overlay: bool = True
+    roi: Optional[dict] = None  # ROI 영역 {x, y, width, height}
 
 
 class AutoDetectResponse(BaseModel):
@@ -1222,10 +1223,32 @@ async def detect_court_auto(request: AutoDetectRequest):
         if image is None:
             raise ValueError(f"Failed to load image: {filepath}")
         
-        # 자동 검출 실행
+        # ROI 처리
+        roi_offset = (0, 0)  # ROI 좌표 오프셋
+        detection_image = image  # 검출에 사용할 이미지
+        
+        if request.roi:
+            print(f"   📐 ROI 영역 지정: x={request.roi['x']}, y={request.roi['y']}, "
+                  f"w={request.roi['width']}, h={request.roi['height']}")
+            
+            # ROI 영역 추출
+            x, y = request.roi['x'], request.roi['y']
+            w, h = request.roi['width'], request.roi['height']
+            
+            # 경계 체크
+            x = max(0, min(x, image.shape[1] - 1))
+            y = max(0, min(y, image.shape[0] - 1))
+            w = min(w, image.shape[1] - x)
+            h = min(h, image.shape[0] - y)
+            
+            detection_image = image[y:y+h, x:x+w].copy()
+            roi_offset = (x, y)
+            print(f"   ✂️ ROI 이미지 크기: {detection_image.shape[1]}x{detection_image.shape[0]}")
+        
+        # 자동 검출 실행 (ROI 영역 또는 전체 이미지)
         print(f"   🔍 자동 검출 시작...")
         result = detect_court_with_overlay(
-            image=image,
+            image=detection_image,
             ensemble_mode='conservative',
             use_extrapolation=False,
             include_doubles=request.include_doubles,
@@ -1243,6 +1266,27 @@ async def detect_court_auto(request: AutoDetectRequest):
                 message="자동 검출 실패",
                 error=error_msg
             )
+        
+        # ROI 사용 시 좌표 변환 (ROI 좌표 → 전체 이미지 좌표)
+        if request.roi and roi_offset != (0, 0):
+            print(f"   🔄 좌표 변환: ROI 오프셋 ({roi_offset[0]}, {roi_offset[1]})")
+            
+            # 코너 좌표 변환
+            for corner_name in ['TL', 'TR', 'BR', 'BL']:
+                if corner_name in result['corners']:
+                    result['corners'][corner_name] = [
+                        result['corners'][corner_name][0] + roi_offset[0],
+                        result['corners'][corner_name][1] + roi_offset[1]
+                    ]
+            
+            # 오버레이 이미지를 원본 이미지 크기로 합성
+            full_overlay = image.copy()
+            x, y = roi_offset
+            h, w = detection_image.shape[:2]
+            full_overlay[y:y+h, x:x+w] = result['overlay_image']
+            result['overlay_image'] = full_overlay
+            
+            print(f"   ✅ 좌표 변환 완료")
         
         # 신뢰도 점수
         confidence = result['confidence']
@@ -1270,7 +1314,7 @@ async def detect_court_auto(request: AutoDetectRequest):
                 k: [float(v[0]), float(v[1])] 
                 for k, v in result['corners'].items()
             },
-            'image_shape': result['metadata']['image_shape']  # 프론트엔드 Canvas 스케일링에 필요
+            'image_shape': [image.shape[0], image.shape[1]]  # 원본 이미지 크기 사용
         }
         session['auto_detect_confidence'] = confidence
         session['auto_detect_time'] = datetime.now().isoformat()
@@ -1353,13 +1397,12 @@ async def get_auto_detect_status(session_id: str):
 
 
 if __name__ == "__main__":
-    import argparse
     import uvicorn
+    import argparse
     
-    # Command line arguments
-    parser = argparse.ArgumentParser(
-        description="Badminton Court Calibration API Server"
-    )
+    print("\n🔥🔥🔥 [SYSTEM] SERVER STARTING WITH MODIFIED CODE 🔥🔥🔥\n")
+    
+    parser = argparse.ArgumentParser(description="Badminton Court Calibration Server")
     parser.add_argument(
         '--detector',
         type=str,

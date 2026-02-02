@@ -41,6 +41,13 @@ storage/calibrations/*
 core/storage/*
 !core/storage/.gitkeep
 
+# Shuttlecock Detection Weights
+core/backend/modules/shuttlecock_detection/weights/*.pt
+core/backend/modules/shuttlecock_detection/weights/*.pth
+core/backend/modules/shuttlecock_detection/weights/*.onnx
+!core/backend/modules/shuttlecock_detection/weights/.gitkeep
+!core/backend/modules/shuttlecock_detection/weights/README.md
+
 
 # ============================================================================
 # Experiments (리팩토링 후 - 전체 무시)

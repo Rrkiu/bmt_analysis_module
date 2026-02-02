@@ -233,8 +233,9 @@ class VideoAnalysisService:
                 
                 # 3. 미니맵 그리기 (좌표가 있을 때만)
                 if self.last_world_pos is not None:
-                    # 사용자 요청 이미지 스타일 요약 카드 (우측 상단)
-                    card_w, card_h = 240, 320
+                    print(f"   [DEBUG] Drawing minimap: pos={self.last_world_pos}")
+                    # 사용자 요청 이미지 스타일 요약 카드 (우측 상단) - 크기 축소 및 풀코트 비율 조정
+                    card_w, card_h = 160, 310
                     card_x = processed.shape[1] - card_w - 30
                     card_y = 30
                     
@@ -242,9 +243,12 @@ class VideoAnalysisService:
                     cv2.rectangle(processed, (card_x, card_y), (card_x + card_w, card_y + card_h), (210, 212, 210), -1)
                     cv2.rectangle(processed, (card_x, card_y), (card_x + card_w, card_y + card_h), (180, 180, 180), 2)
                     
-                    # 미니맵 영역
-                    m_pad = 15
-                    m_size = (card_w - m_pad * 2, card_h - 100)
+                    # 미니맵 영역 (풀코트 비율 1:2.2 고려)
+                    m_pad = 10
+                    # card_w(160) - pad(20) = 140 width
+                    # 140 * 2.2 = 308 height (카드 높이에 맞춤)
+                    m_size = (card_w - m_pad * 2, card_h - m_pad * 2)
+                    
                     processed = VisualizationService.draw_minimap(
                         processed,
                         world_point=self.last_world_pos,
@@ -253,17 +257,10 @@ class VideoAnalysisService:
                         size=m_size
                     )
                     
-                    # 텍스트 정보 (POS, RESULT)
-                    pos_str = f"POS: {self.last_world_pos[0]:.2f}, {self.last_world_pos[1]:.2f}"
-                    res_str = f"RESULT: {'IN' if self.is_last_in_court else 'OUT'}"
-                    res_color = (0, 150, 0) if self.is_last_in_court else (0, 0, 255)
-                    
-                    cv2.putText(processed, pos_str, (card_x + m_pad, card_y + card_h - 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 100, 100), 2)
-                    cv2.putText(processed, res_str, (card_x + m_pad, card_y + card_h - 15), 
-                                cv2.FONT_HERSHEY_DUPLEX, 0.8, res_color, 2)
+                    # [중요] 여기에 텍스트(POS, RESULT)를 그리는 코드가 절대 없어야 함!
                 else:
-                    print("   [Drawing] Skipping minimap because world_pos is None.")
+                    # print("   [Drawing] Skipping minimap because world_pos is None.") # 너무 시끄러워서 주석
+                    pass
                 
                 # 4. 판정 텍스트 (화면 하단 중앙 - 기존 유지)
                 status_text = "JUDGMENT: IN" if self.is_last_in_court else "JUDGMENT: OUT"

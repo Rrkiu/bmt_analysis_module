@@ -1,11 +1,12 @@
 /**
- * CalibrationPage - Enhanced with Auto-Detection
- * 코트 캘리브레이션 페이지 (자동 검출 + 수동 조정)
+ * CalibrationPage - Enhanced with ROI Selection
+ * 코트 캘리브레이션 페이지 (ROI 선택 + 자동 검출 + 수동 조정)
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCalibration } from '../../hooks/useCalibration';
+import { ROISelector } from '../../components/Analysis/ROISelector';
 import './CalibrationPage.css';
 
 const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || 'http://localhost:8000';
@@ -45,6 +46,10 @@ export function CalibrationPage() {
     const imageRef = useRef<HTMLImageElement>(null);
     const [selectedCornerIndex, setSelectedCornerIndex] = useState<number>(0);
     const [showManualMode, setShowManualMode] = useState<boolean>(false);
+
+    // ROI 선택 관련 state
+    const [showROISelector, setShowROISelector] = useState<boolean>(false);
+    const [selectedROI, setSelectedROI] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
     // 이미지 로드 시 Canvas에 그리기
     useEffect(() => {
@@ -171,21 +176,44 @@ export function CalibrationPage() {
         if (!file) return;
 
         try {
-            const uploadResponse = await uploadImage(file);
+            await uploadImage(file);
             setSelectedCornerIndex(0);
             setShowManualMode(false);
 
-            // Use session_id from upload response
-            await handleAutoDetect(uploadResponse.session_id);
+            // ROI 선택 단계로 이동
+            setShowROISelector(true);
         } catch (error) {
             console.error('Upload failed:', error);
         }
     };
 
     /**
-     * Auto-detection execution
+     * ROI 확인 핸들러
      */
-    const handleAutoDetect = async (sessionIdParam?: string) => {
+    const handleROIConfirm = async (roi: { x: number; y: number; width: number; height: number }) => {
+        setSelectedROI(roi);
+        setShowROISelector(false);
+
+        console.log('[CalibrationPage] ROI confirmed:', roi);
+
+        // ROI 정보와 함께 자동 검출 실행
+        if (sessionId) {
+            await handleAutoDetect(sessionId, roi);
+        }
+    };
+
+    /**
+     * ROI 선택 스킵 핸들러
+     */
+    const handleROISkip = () => {
+        setShowROISelector(false);
+        setShowManualMode(true);
+    };
+
+    /**
+     * Auto-detection execution (with optional ROI)
+     */
+    const handleAutoDetect = async (sessionIdParam?: string, roi?: { x: number; y: number; width: number; height: number }) => {
         try {
             // 파라미터가 있으면 그것을, 없으면 state의 sessionId를 사용
             // 중요: 이벤트 객체가 들어오는 것을 방지하기 위해 타입 체크
@@ -197,10 +225,10 @@ export function CalibrationPage() {
                 return;
             }
 
-            console.log('Starting auto-detection with session:', targetSessionId);
+            console.log('Starting auto-detection with session:', targetSessionId, 'ROI:', roi);
 
-            // Call autoDetect hook directly with session ID
-            await autoDetect(targetSessionId);
+            // Call autoDetect hook directly with session ID and ROI
+            await autoDetect(targetSessionId, roi);
 
         } catch (error) {
             console.error('Auto-detection failed:', error);
@@ -264,6 +292,15 @@ export function CalibrationPage() {
                         disabled={isLoading}
                     />
                 </div>
+            )}
+
+            {/* ROI 선택 단계 */}
+            {sessionId && showROISelector && imageUrl && (
+                <ROISelector
+                    imageUrl={imageUrl}
+                    onROIConfirm={handleROIConfirm}
+                    onSkip={handleROISkip}
+                />
             )}
 
             {/* 자동 검출 진행 중 */}

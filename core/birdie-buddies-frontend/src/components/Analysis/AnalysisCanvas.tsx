@@ -265,8 +265,9 @@ function drawMinimapCard(
     landing: LandingData,
     color: string
 ) {
-    const cardW = 260;
-    const cardH = 340;
+    // [수정] 크기 축소 (160x280) 및 풀코트 비율
+    const cardW = 160;
+    const cardH = 280;
     const cardX = canvas.width - cardW - 30;
     const cardY = 30;
 
@@ -282,114 +283,118 @@ function drawMinimapCard(
     ctx.stroke();
 
     // 미니맵 영역
-    const mPad = 15;
-    const mSizeH = cardH - 120;
+    const mPad = 10;
     const mx = cardX + mPad;
     const my = cardY + mPad;
     const mw = cardW - mPad * 2;
-    const mh = mSizeH;
+    const mh = cardH - mPad * 2;
 
     // 미니맵 배경 (진한 회색)
-    ctx.fillStyle = 'rgba(160, 162, 160, 1)';
+    ctx.fillStyle = 'rgba(40, 40, 40, 1)';
     ctx.fillRect(mx, my, mw, mh);
-    ctx.strokeStyle = 'white';
+    ctx.strokeStyle = 'rgba(200, 200, 200, 1)';
     ctx.lineWidth = 2;
     ctx.strokeRect(mx, my, mw, mh);
 
-    // [수정됨] 실제 배드민턴 복식 코트 라인 그리기
+    // [수정] 실제 배드민턴 코트 규격 및 좌표계 적용
+    // 좌표계(추정): 네트 중앙 (0,0), X축: 좌우(-3.05 ~ 3.05), Y축: 전후(-6.7 ~ 6.7)
+    // 미니맵: 위쪽이 상대편(+Y), 아래쪽이 우리편(-Y) 가정
+
+    const courtHalfWidth = 3.05;  // 6.1m / 2
+    const courtHalfLength = 6.7;  // 13.4m / 2
+
+    // Canvas 좌표 매핑 함수
+    // X: (-3.05 ~ 3.05) -> (mx ~ mx+mw)
+    const toMiniX = (wx: number) => mx + ((wx + courtHalfWidth) / (2 * courtHalfWidth)) * mw;
+
+    // Y: (+6.7 ~ -6.7) -> (my ~ my+mh) 
+    // Y가 양수(상대편)일 때 위쪽(my), Y가 음수(우리편)일 때 아래쪽(my+mh)
+    // 식: my + mh/2 - (wy / courtHalfLength) * (mh/2)
+    // wy = 6.7 -> my
+    // wy = -6.7 -> my + mh
+    const toMiniY = (wy: number) => my + (mh / 2) - (wy / courtHalfLength) * (mh / 2);
+
+    // 코트 라인 그리기 (흰색)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1.5;
+
+    // 1. 네트 (중앙 가로선, y=0) - 노란색 점선이나 실선
+    ctx.beginPath();
+    ctx.strokeStyle = '#FFFF00';
+    ctx.lineWidth = 2;
+    const netY = toMiniY(0);
+    ctx.moveTo(mx, netY);
+    ctx.lineTo(mx + mw, netY);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 다시 흰색
+    ctx.lineWidth = 1.5;
+
+    // 2. 숏 서비스 라인 (양쪽, 네트에서 1.98m)
+    // 상대편(위쪽, +1.98)
+    let y = toMiniY(1.98);
+    ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(mx + mw, y); ctx.stroke();
+    // 우리편(아래쪽, -1.98)
+    y = toMiniY(-1.98);
+    ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(mx + mw, y); ctx.stroke();
+
+    // 3. 롱 서비스 라인 (복식, 백바운더리에서 0.76m 안쪽 -> 네트에서 5.94m)
+    // 상대편(위쪽, +5.94)
+    y = toMiniY(5.94);
+    ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(mx + mw, y); ctx.stroke();
+    // 우리편(아래쪽, -5.94)
+    y = toMiniY(-5.94);
+    ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(mx + mw, y); ctx.stroke();
+
+    // 4. 센터 라인 (양쪽, 숏 서비스 ~ 백바운더리)
+    const centerX = toMiniX(0);
+    // 상대편 (1.98 ~ 6.7)
+    ctx.beginPath(); ctx.moveTo(centerX, toMiniY(1.98)); ctx.lineTo(centerX, toMiniY(6.7)); ctx.stroke();
+    // 우리편 (-1.98 ~ -6.7)
+    ctx.beginPath(); ctx.moveTo(centerX, toMiniY(-1.98)); ctx.lineTo(centerX, toMiniY(-6.7)); ctx.stroke();
+
+    // 5. 단식 사이드 라인 (좌우 0.46m 안쪽 -> 3.05 - 0.46 = 2.59)
+    const leftSingles = toMiniX(-2.59);
+    const rightSingles = toMiniX(2.59);
+    // 끝에서 끝까지
+    ctx.beginPath(); ctx.moveTo(leftSingles, my); ctx.lineTo(leftSingles, my + mh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rightSingles, my); ctx.lineTo(rightSingles, my + mh); ctx.stroke();
+
+    // 낙하 지점 표시
     if (landing.pos) {
-        const [wx, wy] = landing.pos;
+        let [wx, wy] = landing.pos;
 
-        // 좌표 매핑
-        // 복식 코트 전체 폭: 6.1m → -3.05 ~ 3.05
-        // 네트부터 후방까지 길이: 6.7m
-        const courtWidth = 6.1;
-        const courtLength = 6.7;
+        // [자동 보정] 좌표축 스왑 감지
+        // X축(폭)은 보통 -3.05 ~ 3.05, Y축(길이)는 -6.7 ~ 6.7 (또는 더 큼)
+        // 만약 첫 번째 값이 코트 폭을 크게 벗어난다면 Y축 값일 확률이 높음 (X, Y가 바뀐 경우)
+        if (Math.abs(wx) > 4.0 && Math.abs(wy) < 4.0) {
+            // 값 스왑
+            [wx, wy] = [wy, wx];
+        }
 
-        const px = mx + ((wx + courtWidth / 2) / courtWidth) * mw;
-        const py = my + (wy / courtLength) * mh;
+        const px = toMiniX(wx);
 
-        // 코트 라인 그리기 (흰색)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.lineWidth = 1.5;
+        // [수정] Y축 방향 반전
+        // 백엔드 좌표계와 프론트엔드 미니맵 Y축 방향이 반대일 경우를 대비해 부호 조정
+        // 사용자 피드백: "가까운 영역(우리편)" -> "상대편"에 찍힘. 
+        // 즉, 현재 로직( -wy )이 반대로 동작함. 따라서 ( +wy )로 변경.
+        // 식: my + mh/2 + (wy / courtHalfLength) * (mh / 2)
+        const py = my + (mh / 2) + (wy / courtHalfLength) * (mh / 2);
 
-        // 1. 중앙선 (세로)
-        ctx.beginPath();
-        ctx.moveTo(mx + mw / 2, my);
-        ctx.lineTo(mx + mw / 2, my + mh);
-        ctx.stroke();
-
-        // 2. 숏 서비스 라인 (네트로부터 1.98m)
-        const shortServiceY = my + (1.98 / courtLength) * mh;
-        ctx.beginPath();
-        ctx.moveTo(mx, shortServiceY);
-        ctx.lineTo(mx + mw, shortServiceY);
-        ctx.stroke();
-
-        // 3. 롱 서비스 라인 (복식, 후방 0.76m)
-        const longServiceY = my + ((courtLength - 0.76) / courtLength) * mh;
-        ctx.beginPath();
-        ctx.moveTo(mx, longServiceY);
-        ctx.lineTo(mx + mw, longServiceY);
-        ctx.stroke();
-
-        // 4. 단식 사이드 라인 (좌우 0.46m 안쪽)
-        const singlesSideOffset = (0.46 / courtWidth) * mw;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        ctx.moveTo(mx + singlesSideOffset, my);
-        ctx.lineTo(mx + singlesSideOffset, my + mh);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(mx + mw - singlesSideOffset, my);
-        ctx.lineTo(mx + mw - singlesSideOffset, my + mh);
-        ctx.stroke();
-
-        // 5. 네트 위치 (상단, 굵은 선)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(mx, my);
-        ctx.lineTo(mx + mw, my);
-        ctx.stroke();
-
-        // 미니맵 낙구 점 (빛나는 효과)
         if (px >= mx - 10 && px <= mx + mw + 10 && py >= my - 10 && py <= my + mh + 10) {
             ctx.shadowBlur = 10;
             ctx.shadowColor = color;
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(px, py, 10, 0, Math.PI * 2);
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = 'white';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 2;
             ctx.stroke();
             ctx.shadowBlur = 0;
         }
     }
 
-    // 카드 하단 정보 텍스트
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    // POS 텍스트
-    ctx.fillStyle = '#666';
-    ctx.font = 'bold 16px Courier New, monospace';  // 18px → 16px
-    const posText = landing.pos
-        ? `POS: ${landing.pos[0].toFixed(2)}, ${landing.pos[1].toFixed(2)}`
-        : 'POS: N/A';
-    ctx.fillText(posText, cardX + mPad, cardY + cardH - 75);
-
-    // RESULT 텍스트
-    ctx.fillStyle = color;
-    ctx.font = 'bold 28px Arial Black, sans-serif';  // 32px → 28px
-    ctx.fillText(
-        `RESULT: ${landing.is_in_court ? 'IN' : 'OUT'}`,
-        cardX + mPad,
-        cardY + cardH - 45
-    );
+    // 텍스트(POS, RESULT) 제거함
 }
 

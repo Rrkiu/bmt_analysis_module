@@ -81,6 +81,12 @@ export interface AutoDetectRequest {
     overlay_alpha?: number;
     draw_corners?: boolean;
     save_overlay?: boolean;
+    roi?: {  // ROI 영역 (선택적)
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
 }
 
 export interface AutoDetectResponse {
