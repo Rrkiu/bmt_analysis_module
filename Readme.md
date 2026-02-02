@@ -204,8 +204,13 @@ GET  /api/videos/list             # 비디오 목록
 # ultralytics 설치 확인
 pip install ultralytics
 
+# 갸중치 파일 드라이브 (임시파일)
+https://drive.google.com/file/d/1IFQOReFPvYgniAw50OPJ0LUPWz7b2n1v/view?usp=sharing
+
 # 가중치 파일 확인
 ls core/backend/modules/shuttlecock_detection/weights/
+
+
 ```
 
 ### **TrackNet 연결 실패**
