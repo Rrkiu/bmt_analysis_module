@@ -253,7 +253,7 @@ export function VideoAnalysisPage() {
                         </button>
                         <p className="hint">
                             {isAnalyzing
-                                ? '15fps로 실시간 분석 중... 셔틀콕 위치와 낙하 지점이 표시됩니다.'
+                                ? '30fps로 실시간 분석 중... 셔틀콕 위치와 낙하 지점이 표시됩니다.'
                                 : '분석 시작 시 비디오의 각 프레임을 분석하여 셔틀콕을 추적합니다.'}
                         </p>
 

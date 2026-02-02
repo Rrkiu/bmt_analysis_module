@@ -1,0 +1,5 @@
+wandb/*
+scripts/run_with_wandb.sh
+*.pt
+experiments/*
+checkpoints/*

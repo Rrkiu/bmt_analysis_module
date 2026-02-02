@@ -1,0 +1,167 @@
+/**
+ * ROISelector.css
+ * ROI 선택 컴포넌트 스타일
+ */
+
+.roi-selector {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.roi-selector h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Instructions */
+.roi-instructions {
+    background: #f8f9fa;
+    border-left: 4px solid #3498db;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.roi-hint {
+    font-size: 16px;
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+}
+
+.roi-hint strong {
+    color: #3498db;
+}
+
+.roi-tips {
+    margin: 10px 0 0 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.roi-tips li {
+    margin: 5px 0;
+    color: #555;
+    font-size: 14px;
+}
+
+/* Crop Container */
+.roi-crop-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+    background: #f0f0f0;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.roi-crop-container img {
+    display: block;
+}
+
+/* ROI Info */
+.roi-info {
+    text-align: center;
+    margin: 15px 0;
+    padding: 10px;
+    background: #e8f4f8;
+    border-radius: 4px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* Actions */
+.roi-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+
+.roi-confirm-button,
+.roi-skip-button,
+.roi-cancel-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.roi-confirm-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.roi-confirm-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.roi-confirm-button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.roi-skip-button {
+    background: #3498db;
+    color: white;
+}
+
+.roi-skip-button:hover {
+    background: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.roi-cancel-button {
+    background: #95a5a6;
+    color: white;
+}
+
+.roi-cancel-button:hover {
+    background: #7f8c8d;
+}
+
+/* React Image Crop 커스터마이징 */
+.ReactCrop {
+    max-width: 100%;
+}
+
+.ReactCrop__crop-selection {
+    border: 2px solid #3498db !important;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5) !important;
+}
+
+.ReactCrop__drag-handle {
+    width: 12px !important;
+    height: 12px !important;
+    background-color: #3498db !important;
+    border: 2px solid white !important;
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+    .roi-selector {
+        padding: 10px;
+    }
+
+    .roi-actions {
+        flex-direction: column;
+    }
+
+    .roi-confirm-button,
+    .roi-skip-button,
+    .roi-cancel-button {
+        width: 100%;
+    }
+
+    .roi-crop-container {
+        padding: 10px;
+    }
+}
