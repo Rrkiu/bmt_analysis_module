@@ -974,7 +974,28 @@ async def predict_frame(
     if 'analysis_service' not in session:
         if not session.get('calibrated'):
             raise HTTPException(status_code=400, detail="캘리브레이션이 완료되지 않았습니다")
-        session['analysis_service'] = VideoAnalysisService(session_id, session['calibration_result'])
+        
+        # Detector 설정 준비
+        detector_type = app.state.detector_type
+        detector_config = {}
+        
+        if detector_type == 'yolo':
+            detector_config = {
+                'model_path': app.state.yolo_weights,
+                'conf_threshold': 0.3,  # 0.4 → 0.3으로 낮춤 (더 많은 검출)
+                'device': 'cuda'
+            }
+        elif detector_type == 'tracknet':
+            detector_config = {
+                'zmq_url': app.state.tracknet_url
+            }
+        
+        session['analysis_service'] = VideoAnalysisService(
+            session_id=session_id,
+            calibration_data=session['calibration_result'],
+            detector_type=detector_type,
+            detector_config=detector_config
+        )
     
     service = session['analysis_service']
     
@@ -1329,6 +1350,64 @@ async def get_auto_detect_status(session_id: str):
     })
 
 
+
+
 if __name__ == "__main__":
+    import argparse
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    # Command line arguments
+    parser = argparse.ArgumentParser(
+        description="Badminton Court Calibration API Server"
+    )
+    parser.add_argument(
+        '--detector',
+        type=str,
+        choices=['yolo', 'tracknet'],
+        default='yolo',
+        help='Shuttlecock detection model (default: yolo)'
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='0.0.0.0',
+        help='Server host (default: 0.0.0.0)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Server port (default: 8000)'
+    )
+    parser.add_argument(
+        '--yolo-weights',
+        type=str,
+        default='modules/shuttlecock_detection/weights/yolo11n_shuttlecock_best.pt',
+        help='Path to YOLO weights file'
+    )
+    parser.add_argument(
+        '--tracknet-url',
+        type=str,
+        default='tcp://localhost:8002',
+        help='TrackNet ZeroMQ server URL'
+    )
+    
+    args = parser.parse_args()
+    
+    # Store detector config globally
+    app.state.detector_type = args.detector
+    app.state.yolo_weights = args.yolo_weights
+    app.state.tracknet_url = args.tracknet_url
+    
+    print("=" * 60)
+    print("🏸 Badminton Court Calibration API Server")
+    print("=" * 60)
+    print(f"📍 Host: {args.host}:{args.port}")
+    print(f"🎯 Shuttlecock Detector: {args.detector.upper()}")
+    if args.detector == 'yolo':
+        print(f"   Weights: {args.yolo_weights}")
+    else:
+        print(f"   ZMQ URL: {args.tracknet_url}")
+    print("=" * 60)
+    
+    uvicorn.run(app, host=args.host, port=args.port)

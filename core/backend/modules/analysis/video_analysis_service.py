@@ -24,21 +24,67 @@ from decorators import time_logger
 class VideoAnalysisService:
     """비디오 분석 서비스"""
     
-    def __init__(self, session_id: str, calibration_data: Dict, use_tracknet: bool = True):
+    def __init__(
+        self, 
+        session_id: str, 
+        calibration_data: Dict, 
+        detector_type: str = 'yolo',
+        detector_config: Optional[Dict] = None
+    ):
         """
         초기화
         
         Args:
+            session_id: 세션 ID
             calibration_data: 캘리브레이션 데이터
                 - court_corners_image: 이미지 좌표 4개 코너
                 - homography_matrix: Homography 행렬
-            use_tracknet: TrackNet 추적 활성화 여부
+            detector_type: 검출기 타입 ('yolo' 또는 'tracknet')
+            detector_config: 검출기 설정 (선택)
         """
         self.calibration_data = calibration_data
+        self.detector_type = detector_type
         
-        # TrackNet 서비스 초기화
-        self.use_tracknet = use_tracknet
-        self.tracknet_service = TrackNetService(session_id) if use_tracknet else None
+        # 검출기 어댑터 초기화
+        if detector_config is None:
+            detector_config = {}
+        
+        print(f"🔧 Initializing VideoAnalysisService with {detector_type.upper()} detector")
+        
+        if detector_type == 'yolo':
+            from ..shuttlecock_detection.adapters import YOLODetectorAdapter
+            
+            model_path = detector_config.get(
+                'model_path',
+                'modules/shuttlecock_detection/weights/yolo11n_shuttlecock_best.pt'
+            )
+            conf_threshold = detector_config.get('conf_threshold', 0.5)
+            device = detector_config.get('device', 'cuda')
+            
+            self.detector_adapter = YOLODetectorAdapter(
+                session_id=session_id,
+                model_path=model_path,
+                conf_threshold=conf_threshold,
+                device=device
+            )
+            
+        elif detector_type == 'tracknet':
+            from ..shuttlecock_detection.adapters import TrackNetDetectorAdapter
+            
+            zmq_url = detector_config.get('zmq_url', 'tcp://localhost:8002')
+            
+            self.detector_adapter = TrackNetDetectorAdapter(
+                session_id=session_id,
+                zmq_url=zmq_url
+            )
+        else:
+            raise ValueError(f"Unknown detector type: {detector_type}")
+        
+        # 레거시 호환성: use_tracknet 플래그
+        self.use_tracknet = (detector_type == 'tracknet')
+        
+        # TrackNet 서비스는 어댑터로 대체됨
+        # self.tracknet_service = TrackNetService(session_id) if use_tracknet else None
         
         # 키 이름 정규화 (court_corners_image 또는 corners_image 둘 다 지원)
         corners_data = None
@@ -113,47 +159,47 @@ class VideoAnalysisService:
         processed = frame.copy()
         self.frame_counter += 1
         
-        # 1. TrackNet 분석 수행
+        # 1. 셔틀콕 검출 수행 (어댑터 사용)
         tracknet_info = {
             'x': 0, 'y': 0, 'visibility': 0, 
             'is_landed': self.landing_detector.is_landed,
             'landing_debug': self.landing_detector.get_debug_info()
         }
         
-        if self.use_tracknet and self.tracknet_service:
-            prediction = self.tracknet_service.get_prediction(frame)
+        # 검출기 어댑터 사용
+        prediction = self.detector_adapter.get_prediction(frame)
+        
+        x, y, vis = (0, 0, 0)
+        if prediction:
+            # 궤적 그리기 (어댑터의 draw_prediction 사용)
+            processed = self.detector_adapter.draw_prediction(processed, prediction)
+            x, y, vis = prediction
+        
+        # 2. 낙하 감지 업데이트 (매 프레임 수행 - 공이 안 보여도 visibility=0으로 업데이트)
+        new_landing = self.landing_detector.update(x, y, vis, self.frame_counter)
+        
+        if new_landing:
+            self.last_landing_info = self.landing_detector.get_landing_info()
+            self.last_landing_time = video_time
+            self.last_landing_frame = self.frame_counter
+            # 실세계 좌표 변환
+            world_pos = self.ht.image_to_world((self.last_landing_info['x'], self.last_landing_info['y']))
+            self.last_world_pos = world_pos
             
-            x, y, vis = (0, 0, 0)
-            if prediction:
-                # 궤적 그리기 (이전 예측값들)
-                processed = self.tracknet_service.draw_prediction(processed, prediction)
-                x, y, vis = prediction
-            
-            # 2. 낙하 감지 업데이트 (매 프레임 수행 - 공이 안 보여도 visibility=0으로 업데이트)
-            new_landing = self.landing_detector.update(x, y, vis, self.frame_counter)
-            
-            if new_landing:
-                self.last_landing_info = self.landing_detector.get_landing_info()
-                self.last_landing_time = video_time
-                self.last_landing_frame = self.frame_counter
-                # 실세계 좌표 변환
-                world_pos = self.ht.image_to_world((self.last_landing_info['x'], self.last_landing_info['y']))
-                self.last_world_pos = world_pos
-                
-                # 코트 내/외 판별 (좌표 변환 실패 시 무조건 OUT으로 간주)
-                if world_pos is not None:
-                    self.is_last_in_court = CourtGeometry.is_point_in_court(world_pos)
-                else:
-                    self.is_last_in_court = False
-                    print(f"   ⚠️ Warning: Could not transform image pos ({self.last_landing_info['x']}, {self.last_landing_info['y']}) to world coordinates.")
-            
-            tracknet_info = {
-                'x': x,
-                'y': y,
-                'visibility': vis,
-                'is_landed': self.landing_detector.is_landed,
-                'landing_debug': self.landing_detector.get_debug_info()
-            }
+            # 코트 내/외 판별 (좌표 변환 실패 시 무조건 OUT으로 간주)
+            if world_pos is not None:
+                self.is_last_in_court = CourtGeometry.is_point_in_court(world_pos)
+            else:
+                self.is_last_in_court = False
+                print(f"   ⚠️ Warning: Could not transform image pos ({self.last_landing_info['x']}, {self.last_landing_info['y']}) to world coordinates.")
+        
+        tracknet_info = {
+            'x': x,
+            'y': y,
+            'visibility': vis,
+            'is_landed': self.landing_detector.is_landed,
+            'landing_debug': self.landing_detector.get_debug_info()
+        }
         
         # 3. 코트 오버레이
         if mode == 'debug':

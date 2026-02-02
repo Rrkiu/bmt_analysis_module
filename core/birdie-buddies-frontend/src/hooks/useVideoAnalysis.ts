@@ -3,11 +3,11 @@
  * 비디오 분석 Custom Hook
  * 
  * [추가됨 - Step 3]
- * 15fps로 실시간 프레임 분석 수행
+ * 30fps로 실시간 프레임 분석 수행 (YOLO 모델 사용)
  * 
  * 기능:
  * 1. 비디오 프레임 캡처 (Canvas API)
- * 2. 백엔드 API 호출 (67ms 간격 = 15fps)
+ * 2. 백엔드 API 호출 (33ms 간격 = 30fps)
  * 3. 셔틀콕 위치 및 낙하 판정 수신
  * 4. 캘리브레이션 데이터 로드
  */
@@ -15,8 +15,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as analysisAPI from '../services/analysisAPI';
 
-// 15fps = 67ms 간격
-const ANALYSIS_INTERVAL = 67;
+// 30fps = 33ms 간격 (YOLO 모델은 빠르고 가벼워서 30fps 가능)
+const ANALYSIS_INTERVAL = 33;
+
 
 interface CalibrationData {
     court_corners_image: number[][];
@@ -145,11 +146,12 @@ export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefOb
 
         setState(prev => ({ ...prev, isAnalyzing: true }));
 
-        // 15fps로 분석 요청
+        // 30fps로 분석 요청
         analysisIntervalRef.current = setInterval(() => {
             analyzeFrame();
         }, ANALYSIS_INTERVAL);
     }, [analyzeFrame]);
+
 
     /**
      * 분석 중지
