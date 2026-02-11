@@ -1,0 +1,84 @@
+# ==========================================
+# YOLO Training Configuration Template
+# ==========================================
+# Copy this file to ../../config/train_config.yaml and modify as needed
+
+# Model Selection
+# Options: yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt
+# Recommendation: yolov8m.pt for best accuracy
+model: yolov8m.pt
+
+# Dataset Configuration
+# Update this path to your actual dataset location
+data: /path/to/your/dataset/data.yaml
+
+# Training Parameters
+epochs: 100              # Number of training epochs
+imgsz: 1280              # ✅ CRITICAL: Use 1280 for shuttlecock (small object)
+batch: 4                 # Batch size (reduce if OOM)
+device: 0                # GPU device (0, 1, 2... or 'cpu')
+
+# Project Organization
+project: experiments     # Output directory
+wandb_project: shuttlecock_detection  # WandB project name
+name: null               # Auto-generated: {model}_{timestamp}
+
+# Training Optimization
+patience: 50             # Early stopping patience
+save: True               # Save checkpoints
+save_period: 5           # Save every N epochs
+workers: 8               # DataLoader workers
+optimizer: auto          # Optimizer (auto, SGD, Adam, AdamW)
+lr0: 0.01                # Initial learning rate
+amp: True                # ✅ FP16 Mixed Precision (saves ~40% memory)
+
+# ==========================================
+# Shuttlecock-Optimized Hyperparameters
+# ==========================================
+
+# Loss Weights (for small object detection)
+box: 7.5                 # Box loss weight
+cls: 0.5                 # Class loss weight
+dfl: 1.5                 # Distribution Focal Loss
+
+# Detection Thresholds
+conf: 0.001              # Confidence threshold (low during training)
+iou: 0.7                 # IoU threshold for NMS
+
+# Small Object Detection Strategy
+close_mosaic: 10         # Disable mosaic in last N epochs
+
+# ==========================================
+# Augmentation Settings
+# ==========================================
+# Conservative settings for small, fast-moving objects
+
+# Color Augmentation
+hsv_h: 0.01              # Hue (minimal - shuttlecock is white)
+hsv_s: 0.5               # Saturation
+hsv_v: 0.3               # Brightness/Value
+
+# Geometric Augmentation
+degrees: 5.0             # Rotation (±degrees)
+translate: 0.1           # Translation (0-1)
+scale: 0.3               # Scaling (0-1)
+shear: 0.0               # Shear (disabled)
+perspective: 0.0         # Perspective (disabled)
+
+# Flip Augmentation
+flipud: 0.0              # Vertical flip (disabled - court orientation matters)
+fliplr: 0.5              # Horizontal flip (enabled - court is symmetric)
+
+# Advanced Augmentation
+mosaic: 0.8              # Mosaic augmentation (slightly reduced)
+mixup: 0.1               # Mixup augmentation (low for small objects)
+copy_paste: 0.0          # Copy-paste (disabled for single object tracking)
+
+# ==========================================
+# Notes
+# ==========================================
+# 1. Always use imgsz=1280 for shuttlecock detection
+# 2. Enable amp=True for memory efficiency
+# 3. Adjust batch size based on GPU memory
+# 4. Monitor WandB for training progress
+# 5. Best model saved to: experiments/{name}/weights/best.pt
