@@ -58,7 +58,7 @@ export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefOb
     });
 
     const lastAnalysisTimeRef = useRef<number>(0);
-    const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const analysisIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     /**
      * 캘리브레이션 데이터 로드
@@ -67,8 +67,9 @@ export function useVideoAnalysis(sessionId: string | null, videoRef: React.RefOb
         if (!sessionId) return;
 
         try {
-            // 올바른 API 경로: /api/session/{session_id}/calibration
-            const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || 'http://localhost:8000';
+            // [수정됨 - 2026-02-22] fallback을 '' (상대경로)로 변경
+            // 'http://localhost:8000' 직접 접근 시 WSL 포트포워딩 불안정으로 실패 → calibrationData=null → 오버레이 미표시
+            const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || '';
             const response = await fetch(
                 `${API_BASE_URL}/api/session/${sessionId}/calibration`
             );

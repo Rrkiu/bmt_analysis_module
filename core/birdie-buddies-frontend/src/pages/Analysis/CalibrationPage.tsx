@@ -9,7 +9,8 @@ import { useCalibration } from '../../hooks/useCalibration';
 import { ROISelector } from '../../components/Analysis/ROISelector';
 import './CalibrationPage.css';
 
-const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || '';
+
 
 // 신뢰도 임계값
 const CONFIDENCE_THRESHOLDS = {
@@ -172,18 +173,25 @@ export function CalibrationPage() {
      * 파일 업로드 핸들러
      */
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        console.log('[UPLOAD] ① onChange fired', e.target.files);
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file) {
+            console.log('[UPLOAD] ❌ No file selected');
+            return;
+        }
+        console.log('[UPLOAD] ② File selected:', file.name, file.size, 'bytes');
 
         try {
+            console.log('[UPLOAD] ③ Calling uploadImage...');
             await uploadImage(file);
+            console.log('[UPLOAD] ④ uploadImage succeeded!');
             setSelectedCornerIndex(0);
             setShowManualMode(false);
 
             // ROI 선택 단계로 이동
             setShowROISelector(true);
         } catch (error) {
-            console.error('Upload failed:', error);
+            console.error('[UPLOAD] ❌ Upload failed:', error);
         }
     };
 

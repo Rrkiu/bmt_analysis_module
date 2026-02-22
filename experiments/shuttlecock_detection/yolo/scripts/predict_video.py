@@ -133,7 +133,7 @@ if __name__ == "__main__":
 """
 # 테스트 동영상에 대한 추론 진행
 
-python3 predict_video.py \
+python predict_video.py \
     --weights /mnt/b/cd_p/bmt_demo/experiments/shuttlecock_detection/yolo/experiments/yolov8s_20260202_130108/weights/best.pt \
     --source /mnt/b/cd_p/bmt_demo/experiments/_adutils/bmt_ad \
     --imgsz 1280

@@ -47,7 +47,7 @@ class YOLODetector(BaseDetector):
         self.load_model()
         
     def load_model(self) -> None:
-        """YOLO 모델을 로드합니다."""
+        """YOLO 모델을 로드합니다. (.pt 및 TensorRT .engine 모두 지원)"""
         try:
             from ultralytics import YOLO
         except ImportError:
@@ -60,18 +60,32 @@ class YOLODetector(BaseDetector):
         if not model_path.exists():
             raise FileNotFoundError(f"모델 파일을 찾을 수 없습니다: {self.model_path}")
         
-        # YOLO 모델 로드
-        self.model = YOLO(str(model_path))
+        self.is_engine = model_path.suffix.lower() == '.engine'
         
-        # 디바이스 설정
-        if self.device == 'cuda':
+        # TensorRT engine은 CUDA 필수
+        if self.is_engine:
             import torch
             if not torch.cuda.is_available():
-                print("CUDA를 사용할 수 없습니다. CPU로 전환합니다.")
-                self.device = 'cpu'
+                raise RuntimeError(
+                    "TensorRT .engine 파일은 CUDA GPU가 필요합니다. "
+                    "CPU에서는 .pt 파일을 사용하세요."
+                )
+            print(f"⚡ TensorRT Engine 로드 중: {model_path.name}")
+            print(f"   imgsz는 engine에 빌드됨 (설정값 {self.img_size} 무시될 수 있음)")
+        else:
+            # .pt 파일: CUDA 사용 불가 시 CPU로 전환
+            if self.device == 'cuda':
+                import torch
+                if not torch.cuda.is_available():
+                    print("CUDA를 사용할 수 없습니다. CPU로 전환합니다.")
+                    self.device = 'cpu'
+        
+        # Ultralytics YOLO는 .pt, .onnx, .engine 모두 동일 API로 로드
+        self.model = YOLO(str(model_path))
         
         self.is_loaded = True
-        print(f"✓ YOLO 모델 로드 완료: {model_path.name}")
+        model_type = "TensorRT Engine" if self.is_engine else "PyTorch"
+        print(f"✓ YOLO 모델 로드 완료 [{model_type}]: {model_path.name}")
         
     def preprocess(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -108,16 +122,21 @@ class YOLODetector(BaseDetector):
         
         conf = conf_threshold if conf_threshold is not None else self.conf_threshold
         
-        # YOLO 추론
-        results = self.model.predict(
+        # TensorRT engine은 imgsz가 이미 빌드돼 있으므로 predict에 전달하지 않음
+        # (전달해도 무시되지만, 경고를 없애기 위해 분기)
+        predict_kwargs = dict(
             source=frame,
             conf=conf,
             iou=self.iou_threshold,
-            imgsz=self.img_size,
             device=self.device,
-            half=self.half,
             verbose=False,
         )
+        if not getattr(self, 'is_engine', False):
+            predict_kwargs['imgsz'] = self.img_size
+            predict_kwargs['half'] = self.half
+        
+        # YOLO 추론
+        results = self.model.predict(**predict_kwargs)
         
         # 결과 후처리
         detections = self.postprocess(results)

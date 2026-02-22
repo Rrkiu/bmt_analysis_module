@@ -980,11 +980,15 @@ async def predict_frame(
         detector_config = {}
         
         if detector_type == 'yolo':
+            weights_path = app.state.yolo_weights
+            # .engine 파일은 imgsz가 빌드-인돼 있으므로 img_size는 YOLODetector 내부에서 자동 무시됨
             detector_config = {
-                'model_path': app.state.yolo_weights,
-                'conf_threshold': 0.3,  # 0.4 → 0.3으로 낮춤 (더 많은 검출)
+                'model_path': weights_path,
+                'conf_threshold': 0.5,
+                'img_size': app.state.yolo_img_size,
                 'device': 'cuda'
             }
+            print(f"🎯 YOLO Detector: {weights_path} (imgsz={app.state.yolo_img_size})")
         elif detector_type == 'tracknet':
             detector_config = {
                 'zmq_url': app.state.tracknet_url
@@ -1425,8 +1429,15 @@ if __name__ == "__main__":
     parser.add_argument(
         '--yolo-weights',
         type=str,
-        default='modules/shuttlecock_detection/weights/yolo11n_shuttlecock_best.pt',
-        help='Path to YOLO weights file'
+        default='modules/shuttlecock_detection/weights/yolov8m_shuttlecock_best.pt',
+        # default='modules/shuttlecock_detection/weights/yolov8m_shuttlecock_best.engine',
+        help='Path to YOLO weights file (.pt) or TensorRT engine (.engine)'
+    )
+    parser.add_argument(
+        '--img-size',
+        type=int,
+        default=1280,
+        help='Inference image size (ignored for .engine files, built-in at export time)'
     )
     parser.add_argument(
         '--tracknet-url',
@@ -1440,6 +1451,7 @@ if __name__ == "__main__":
     # Store detector config globally
     app.state.detector_type = args.detector
     app.state.yolo_weights = args.yolo_weights
+    app.state.yolo_img_size = args.img_size
     app.state.tracknet_url = args.tracknet_url
     
     print("=" * 60)
@@ -1448,7 +1460,13 @@ if __name__ == "__main__":
     print(f"📍 Host: {args.host}:{args.port}")
     print(f"🎯 Shuttlecock Detector: {args.detector.upper()}")
     if args.detector == 'yolo':
-        print(f"   Weights: {args.yolo_weights}")
+        weights_name = args.yolo_weights
+        is_engine = weights_name.endswith('.engine')
+        print(f"   Weights : {weights_name}")
+        if is_engine:
+            print(f"   Mode    : TensorRT Engine (imgsz built-in)")
+        else:
+            print(f"   imgsz   : {args.img_size}")
     else:
         print(f"   ZMQ URL: {args.tracknet_url}")
     print("=" * 60)

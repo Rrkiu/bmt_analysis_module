@@ -6,7 +6,10 @@
  * Birdie Buddies API와 분리하기 위해 VITE_ANALYSIS_API_BASE_URL 사용
  */
 
-const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || 'http://localhost:8000';
+// Vite proxy 경유: 브라우저에서 /api/xxx 상대경로 요청 → Vite가 WSL 내부 127.0.0.1:8000으로 전달
+// localhost:8000 직접 접근은 WSL 포트포워딩 불안정으로 사용하지 않음
+const API_BASE_URL = import.meta.env.VITE_ANALYSIS_API_BASE_URL || '';
+
 
 // ============================================
 // Types
