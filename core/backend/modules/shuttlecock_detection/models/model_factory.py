@@ -121,7 +121,8 @@ def auto_detect_model_type(model_path: str) -> Optional[str]:
     extension_map = {
         '.pt': 'yolo',
         '.pth': 'tracknet',
-        '.onnx': 'yolo',  # YOLO ONNX 지원
+        '.onnx': 'yolo',   # YOLO ONNX 지원
+        '.engine': 'yolo', # TensorRT Engine 지원
     }
     
     return extension_map.get(suffix)

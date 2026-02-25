@@ -69,19 +69,33 @@ export function AnalysisCanvas({
             // 클리어
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // calibrationData가 없으면 로딩 중 텍스트 표시 (디버깅용)
+            if (!calibrationData) {
+                ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('⏳ 캘리브레이션 데이터 로딩 중...', 10, 30);
+                animationId = requestAnimationFrame(render);
+                return;
+            }
+
+            // 캘리브레이션 이미지 크기 (코너 좌표 기준)
+            // image_shape: [height, width] 형식
+            const imgH = calibrationData.image_shape?.[0] ?? canvas.height;
+            const imgW = calibrationData.image_shape?.[1] ?? canvas.width;
+
             // 오버레이 그리기
-            if (showOverlay && calibrationData) {
-                drawCourtOverlay(ctx, canvas, calibrationData);
+            if (showOverlay) {
+                drawCourtOverlay(ctx, canvas, calibrationData, imgW, imgH);
             }
 
             // 셔틀콕 그리기
-            if (shuttlecock && shuttlecock.visibility === 1 && calibrationData) {
-                drawShuttlecock(ctx, canvas, shuttlecock, calibrationData);
+            if (shuttlecock && shuttlecock.visibility === 1) {
+                drawShuttlecock(ctx, canvas, shuttlecock, imgW, imgH);
             }
 
             // 낙하 지점 그리기
-            if (landing && calibrationData) {
-                drawLanding(ctx, canvas, landing, calibrationData);
+            if (landing) {
+                drawLanding(ctx, canvas, landing, imgW, imgH);
             }
 
             animationId = requestAnimationFrame(render);
@@ -115,19 +129,16 @@ export function AnalysisCanvas({
 function drawCourtOverlay(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
-    calibrationData: CalibrationData
+    calibrationData: CalibrationData,
+    imageW: number,
+    imageH: number
 ) {
     const corners = calibrationData.court_corners_image;
     if (!corners || corners.length !== 4) return;
 
-    // image_shape 안전성 체크
-    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
-        console.warn('calibrationData.image_shape is missing or invalid in drawCourtOverlay');
-        return;
-    }
-
-    const scaleX = canvas.width / calibrationData.image_shape[1];
-    const scaleY = canvas.height / calibrationData.image_shape[0];
+    // 캘리브레이션 이미지 → 현재 캔버스(비디오) 비율 계산
+    const scaleX = canvas.width / imageW;
+    const scaleY = canvas.height / imageH;
 
     const scaledCorners = corners.map(([x, y]) => [x * scaleX, y * scaleY]);
 
@@ -167,16 +178,11 @@ function drawShuttlecock(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     shuttlecock: ShuttlecockData,
-    calibrationData: CalibrationData
+    imageW: number,
+    imageH: number
 ) {
-    // image_shape 안전성 체크
-    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
-        console.warn('calibrationData.image_shape is missing or invalid');
-        return;
-    }
-
-    const scaleX = canvas.width / calibrationData.image_shape[1];
-    const scaleY = canvas.height / calibrationData.image_shape[0];
+    const scaleX = canvas.width / imageW;
+    const scaleY = canvas.height / imageH;
 
     const x = shuttlecock.x * scaleX;
     const y = shuttlecock.y * scaleY;
@@ -207,17 +213,12 @@ function drawLanding(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     landing: LandingData,
-    calibrationData: CalibrationData
+    imageW: number,
+    imageH: number
 ) {
-    // image_shape 안전성 체크
-    if (!calibrationData.image_shape || calibrationData.image_shape.length < 2) {
-        console.warn('calibrationData.image_shape is missing or invalid in drawLanding');
-        return;
-    }
-
     const color = landing.is_in_court ? '#00ff00' : '#ff0000';
-    const scaleX = canvas.width / calibrationData.image_shape[1];
-    const scaleY = canvas.height / calibrationData.image_shape[0];
+    const scaleX = canvas.width / imageW;
+    const scaleY = canvas.height / imageH;
 
     const lx = landing.image_x * scaleX;
     const ly = landing.image_y * scaleY;

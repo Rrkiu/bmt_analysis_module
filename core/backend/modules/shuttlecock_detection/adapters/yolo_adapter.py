@@ -26,6 +26,7 @@ class YOLODetectorAdapter(BaseDetectorAdapter):
         model_path: str,
         conf_threshold: float = 0.5,
         device: str = 'cuda',
+        img_size: int = 640,
         **kwargs
     ):
         """
@@ -34,6 +35,7 @@ class YOLODetectorAdapter(BaseDetectorAdapter):
             model_path: YOLO 모델 가중치 경로
             conf_threshold: 신뢰도 임계값
             device: 실행 디바이스 ('cuda' 또는 'cpu')
+            img_size: 추론 입력 해상도 (학습 해상도와 일치 권장)
             **kwargs: 추가 YOLO 파라미터
         """
         super().__init__(session_id)
@@ -41,17 +43,21 @@ class YOLODetectorAdapter(BaseDetectorAdapter):
         self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.device = device
+        self.img_size = img_size
         
         # 모든 검출 정보 저장 (시각화용)
         self.all_detections = []  # Detection 객체 리스트
         
         # YOLO 검출기 초기화
         print(f"🔄 Initializing YOLO detector for session {session_id}...")
+        print(f"   Model : {model_path}")
+        print(f"   imgsz : {img_size}")
         self.detector: BaseDetector = create_detector(
             model_type='yolo',
             model_path=model_path,
             conf_threshold=conf_threshold,
             device=device,
+            img_size=img_size,
             **kwargs
         )
         print(f"✅ YOLO detector initialized")

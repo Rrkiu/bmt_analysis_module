@@ -1,8 +1,8 @@
-model: yolo11n.pt  # or yolov8s.pt, yolov8m.pt, etc.
+model: yolov8m.pt # yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt
 data: /mnt/d/dataset/stc_yolo_0129/data.yaml
 epochs: 100
-imgsz: 640
-batch: 32
+imgsz: 1280
+batch: 4
 device: 0  # GPU device index
 project: experiments
 wandb_project: shuttlecock_detection
@@ -12,21 +12,50 @@ wandb_project: shuttlecock_detection
 name: null  # Auto-generated to prevent overwrite
 patience: 50
 save: True
-save_period: 10
+save_period: 5
 workers: 8
 optimizer: auto
 lr0: 0.01
+amp: True  # Automatic Mixed Precision (FP16) - reduces memory usage by ~40%
 
-# Augmentation settings (optional overrides)
-# hsv_h: 0.015
-# hsv_s: 0.7
-# hsv_v: 0.4
-# degrees: 0.0
-# translate: 0.1
-# scale: 0.5
-# shear: 0.0
-# perspective: 0.0
-# flipud: 0.0
-# fliplr: 0.5
-# mosaic: 1.0
-# mixup: 0.0
+# ==========================================
+# Shuttlecock-Optimized Hyperparameters
+# ==========================================
+
+# Loss function weights (for small object detection)
+box: 7.5        # Box loss weight (default: 7.5, increase for better localization)
+cls: 0.5        # Class loss weight (default: 0.5, can reduce for single-class)
+dfl: 1.5        # Distribution Focal Loss weight (default: 1.5)
+
+# Confidence thresholds
+conf: 0.001     # Lower confidence threshold during training (default: 0.25)
+iou: 0.7        # IoU threshold for NMS (default: 0.7)
+
+# Small object detection
+close_mosaic: 10  # Disable mosaic augmentation in last N epochs (helps small objects)
+
+# ==========================================
+# Augmentation Settings (Shuttlecock-Optimized)
+# ==========================================
+
+# Color augmentation (moderate - shuttlecock is usually white/bright)
+hsv_h: 0.01     # Hue augmentation (0-1) - minimal, shuttlecock color is consistent
+hsv_s: 0.5      # Saturation (0-1) - moderate
+hsv_v: 0.3      # Value/brightness (0-1) - moderate for lighting variations
+
+# Geometric augmentation (conservative - shuttlecock is small)
+degrees: 5.0    # Rotation (±deg) - small rotation only
+translate: 0.1  # Translation (0-1) - minimal to keep shuttlecock in frame
+scale: 0.3      # Scale (0-1) - moderate, shuttlecock size varies with distance
+shear: 0.0      # Shear (±deg) - disabled, not natural for shuttlecock
+perspective: 0.0  # Perspective (0-0.001) - disabled, court is usually frontal
+
+# Flip augmentation
+flipud: 0.0     # Vertical flip - disabled (court orientation matters)
+fliplr: 0.5     # Horizontal flip - enabled (court is symmetric)
+
+# Advanced augmentation (for small fast objects)
+mosaic: 0.8     # Mosaic augmentation (0-1) - slightly reduced for small objects
+mixup: 0.1      # Mixup augmentation (0-1) - low value for small objects
+copy_paste: 0.0 # Copy-paste augmentation - disabled (single object tracking)
+

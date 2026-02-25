@@ -56,16 +56,18 @@ class VideoAnalysisService:
             
             model_path = detector_config.get(
                 'model_path',
-                'modules/shuttlecock_detection/weights/yolo11n_shuttlecock_best.pt'
+                'modules/shuttlecock_detection/weights/yolov8m_shuttlecock_best.pt'
             )
             conf_threshold = detector_config.get('conf_threshold', 0.5)
             device = detector_config.get('device', 'cuda')
+            img_size = detector_config.get('img_size', 640)
             
             self.detector_adapter = YOLODetectorAdapter(
                 session_id=session_id,
                 model_path=model_path,
                 conf_threshold=conf_threshold,
-                device=device
+                device=device,
+                img_size=img_size
             )
             
         elif detector_type == 'tracknet':

@@ -65,9 +65,6 @@ def train(config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
-    # 2. Setup WandB
-    setup_wandb(config)
-
     print("=" * 60)
     print(f"Starting Training with config: {config_path}")
     print("=" * 60)
@@ -90,6 +87,11 @@ def train(config_path):
         experiment_name = f"{model_basename}_{timestamp}"
         print(f"📝 Auto-generated experiment name: {experiment_name}")
     
+    # 4. Setup WandB (after experiment name is generated)
+    config_with_name = config.copy()
+    config_with_name["name"] = experiment_name
+    setup_wandb(config_with_name)
+    
     project_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -100,22 +102,54 @@ def train(config_path):
 
         # 5. Train
         print("\nStarting training process...")
-        results = model.train(
-            data=config["data"],
-            epochs=config.get("epochs", 100),
-            imgsz=config.get("imgsz", 640),
-            batch=config.get("batch", 16),
-            device=config.get("device", 0),
-            project=str(project_dir),
-            name=experiment_name,
-            patience=config.get("patience", 50),
-            save=config.get("save", True),
-            save_period=config.get("save_period", -1),
-            workers=config.get("workers", 8),
-            optimizer=config.get("optimizer", "auto"),
-            lr0=config.get("lr0", 0.01),
-            exist_ok=True,
-        )
+        
+        # Build training arguments
+        train_args = {
+            'data': config["data"],
+            'epochs': config.get("epochs", 100),
+            'imgsz': config.get("imgsz", 640),
+            'batch': config.get("batch", 16),
+            'device': config.get("device", 0),
+            'project': str(project_dir),
+            'name': experiment_name,
+            'patience': config.get("patience", 50),
+            'save': config.get("save", True),
+            'save_period': config.get("save_period", -1),
+            'workers': config.get("workers", 8),
+            'optimizer': config.get("optimizer", "auto"),
+            'lr0': config.get("lr0", 0.01),
+            'amp': config.get("amp", True),
+            'exist_ok': True,
+        }
+        
+        # Add loss function weights (for small object detection)
+        if 'box' in config:
+            train_args['box'] = config['box']
+        if 'cls' in config:
+            train_args['cls'] = config['cls']
+        if 'dfl' in config:
+            train_args['dfl'] = config['dfl']
+        
+        # Add confidence and IoU thresholds
+        if 'conf' in config:
+            train_args['conf'] = config['conf']
+        if 'iou' in config:
+            train_args['iou'] = config['iou']
+        
+        # Add small object detection parameters
+        if 'close_mosaic' in config:
+            train_args['close_mosaic'] = config['close_mosaic']
+        
+        # Add augmentation parameters
+        aug_params = ['hsv_h', 'hsv_s', 'hsv_v', 'degrees', 'translate', 'scale', 
+                      'shear', 'perspective', 'flipud', 'fliplr', 'mosaic', 'mixup',
+                      'copy_paste']
+        
+        for param in aug_params:
+            if param in config:
+                train_args[param] = config[param]
+        
+        results = model.train(**train_args)
 
         # 6. Post-training: Copy best model
         print("\nTraining completed.")
